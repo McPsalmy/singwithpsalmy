@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="g" cx="35%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="b" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6ee7ff"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="24" y="24" width="208" height="208" rx="56" fill="#0b0b0f"/>
+  <rect x="24" y="24" width="208" height="208" rx="56" fill="url(#b)" opacity="0.22"/>
+  <rect x="24" y="24" width="208" height="208" rx="56" fill="url(#g)"/>
+
+  <!-- microphone -->
+  <rect x="104" y="54" width="48" height="92" rx="24" fill="#ffffff" opacity="0.92"/>
+  <rect x="114" y="66" width="28" height="68" rx="14" fill="#0b0b0f" opacity="0.18"/>
+  <path d="M80 126c0 26.5 21.5 48 48 48s48-21.5 48-48" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="14" stroke-linecap="round"/>
+  <path d="M128 174v28" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="14" stroke-linecap="round"/>
+  <path d="M96 202h64" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="14" stroke-linecap="round"/>
+</svg>
