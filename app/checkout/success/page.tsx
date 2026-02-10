@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import SiteHeader from "../../components/SiteHeader";
 
@@ -90,6 +90,7 @@ export default function CheckoutSuccessPage() {
   }
 
   return (
+    <Suspense fallback={<main className="min-h-screen text-white"><SiteHeader /><section className="mx-auto max-w-4xl px-5 py-12"><div className="text-sm text-white/70">Loading…</div></section></main>}>
     <main className="min-h-screen text-white">
       <SiteHeader />
 
@@ -185,5 +186,6 @@ export default function CheckoutSuccessPage() {
         </p>
       </section>
     </main>
+    </Suspense>
   );
 }
