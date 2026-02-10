@@ -2,7 +2,14 @@ import { Instagram, Youtube, Music2 } from "lucide-react";
 import "./globals.css";
 
 export const metadata = {
-  title: "SingWithPsalmy — Karaoke practice tracks & performance versions",
+    title: {
+    default: "SingWithPsalmy — Karaoke practice tracks & performance versions",
+    template: "%s — SingWithPsalmy",
+  },
+  alternates: {
+    canonical: "/",
+  },
+
   description:
     "High-quality karaoke practice tracks and performance versions for practice, performance, and pure fun. Browse, preview, and download.",
   metadataBase: new URL(
@@ -10,6 +17,17 @@ export const metadata = {
       process.env.SITE_URL ||
       "http://localhost:3000"
   ),
+
+    robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      noimageindex: true,
+    },
+  },
+
   openGraph: {
     title: "SingWithPsalmy — Karaoke practice tracks & performance versions",
     description:
@@ -23,6 +41,7 @@ export const metadata = {
     description:
       "Karaoke practice tracks and performance versions for practice, performance, and pure fun.",
   },
+
 };
 
 export default function RootLayout({
@@ -59,6 +78,11 @@ export default function RootLayout({
                   <a href="/rights-holder" className="hover:text-white">
                     Rights-holder contact
                   </a>
+                  <span className="text-white/25">•</span>
+<a href="/recover" className="hover:text-white">
+  Recover purchase (expires 30 mins)
+</a>
+
                 </div>
 
                 {/* right: subtle social icons */}

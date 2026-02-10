@@ -3,15 +3,72 @@ import SiteHeader from "../../components/SiteHeader";
 import BackButton from "../../components/BackButton";
 import PurchaseButton from "./PurchaseButton";
 import VersionPreview from "./VersionPreview";
+import { headers } from "next/headers";
+import type { Metadata } from "next";
+
 
 type Params = { slug: string };
 
-function niceTitle(slug: string) {
-  return slug
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+type TrackRow = {
+  id: string;
+  title: string;
+  slug: string;
+  price_naira: number;
+  downloads: number;
+  created_at: string;
+};
+
+async function getTrackBySlug(slug: string): Promise<TrackRow | null> {
+  const h = await headers();
+  const host = h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const base = host ? `${proto}://${host}` : "";
+
+  const res = await fetch(`${base}/api/public/tracks`, { cache: "no-store" }).catch(
+    () => null
+  );
+  if (!res || !res.ok) return null;
+
+  const out = await res.json().catch(() => ({}));
+  if (!out?.ok) return null;
+
+  const list = (out.data ?? []) as TrackRow[];
+  return list.find((t) => t.slug === slug) ?? null;
 }
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params | Promise<Params>;
+}): Promise<Metadata> {
+  const resolvedParams =
+    typeof (params as any)?.then === "function"
+      ? await (params as Promise<Params>)
+      : (params as Params);
+
+  const slug = resolvedParams?.slug ?? "";
+  const track = slug ? await getTrackBySlug(slug) : null;
+
+  const title = track?.title ? track.title : "Track";
+  const description = track?.title
+    ? `Preview and download "${track.title}" — karaoke practice tracks and performance versions in Nigeria (₦).`
+    : "Preview and download karaoke practice tracks and performance versions in Nigeria (₦).";
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `/track/${slug}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `/track/${slug}`,
+      type: "website",
+    },
+  };
+}
+
 
 export default async function TrackPage({
   params,
@@ -24,7 +81,9 @@ export default async function TrackPage({
       : (params as Params);
 
   const slug = resolvedParams?.slug ?? "";
-  const title = slug ? niceTitle(slug) : "Track";
+
+  const track = slug ? await getTrackBySlug(slug) : null;
+  const title = track?.title ?? "Track";
 
   return (
     <main className="min-h-screen text-white">
@@ -54,7 +113,9 @@ export default async function TrackPage({
             </div>
 
             <div className="mt-6 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-              <div className="text-sm font-semibold">Members can request songs</div>
+              <div className="text-sm font-semibold">
+                Members can request songs
+              </div>
               <p className="mt-1 text-sm text-white/70">
                 Can’t find what you want? Active members can request karaoke
                 practice tracks not yet in the catalogue.
@@ -77,7 +138,7 @@ export default async function TrackPage({
             </div>
 
             <div className="mt-4">
-              <PurchaseButton slug={slug} />
+              <PurchaseButton slug={slug} title={title} />
             </div>
           </div>
         </div>

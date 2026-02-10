@@ -18,6 +18,10 @@ function versionLabel(v: CartItem["version"]) {
 
 export default function CartCheckoutPage() {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     const raw = localStorage.getItem("swp_cart");
@@ -25,6 +29,43 @@ export default function CartCheckoutPage() {
   }, []);
 
   const total = useMemo(() => items.length * 700, [items.length]);
+
+  async function pay() {
+  setError(null);
+
+  if (!items.length) return;
+
+  const e = email.trim();
+  if (!e || !e.includes("@")) {
+    setError("Please enter a valid email address.");
+    return;
+  }
+
+  setBusy(true);
+  try {
+    const res = await fetch("/api/payments/paystack/initialize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: e, items }),
+    });
+
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+
+    if (!res.ok || !out?.ok) {
+      console.error(out);
+      setError(out?.error || `Could not start payment (HTTP ${res.status}).`);
+      return;
+    }
+
+    // Redirect to Paystack checkout
+    window.location.href = out.authorization_url;
+  } catch (err: any) {
+    setBusy(false);
+    setError(err?.message || "Could not start payment.");
+  }
+}
+
 
   return (
     <main className="min-h-screen text-white">
@@ -93,18 +134,35 @@ export default function CartCheckoutPage() {
                 <span className="text-lg font-semibold">₦{total.toLocaleString("en-NG")}</span>
               </div>
             </div>
+<div className="mt-5">
+  <label className="text-xs text-white/70">Email (required for receipt)</label>
+  <input
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    placeholder="you@example.com"
+    className="mt-2 w-full rounded-2xl bg-black/30 px-4 py-3 text-sm text-white ring-1 ring-white/10 outline-none placeholder:text-white/40"
+  />
+</div>
 
-            <button
-              disabled={!items.length}
-              className={[
-                "mt-6 w-full rounded-2xl px-5 py-3 text-sm font-semibold",
-                items.length
-                  ? "bg-white text-black hover:bg-white/90"
-                  : "bg-white/10 text-white/50 ring-1 ring-white/10 cursor-not-allowed",
-              ].join(" ")}
-            >
-              Pay ₦{total.toLocaleString("en-NG")}
-            </button>
+{error ? (
+  <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+    ❌ {error}
+  </div>
+) : null}
+
+          <button
+  onClick={pay}
+  disabled={!items.length || busy}
+  className={[
+    "mt-6 w-full rounded-2xl px-5 py-3 text-sm font-semibold",
+    items.length && !busy
+      ? "bg-white text-black hover:bg-white/90"
+      : "bg-white/10 text-white/50 ring-1 ring-white/10 cursor-not-allowed",
+  ].join(" ")}
+>
+  {busy ? "Redirecting..." : `Pay ₦${total.toLocaleString("en-NG")}`}
+</button>
+
 
             <p className="mt-4 text-xs text-white/55">
               Payments will be connected next (Stripe/Paystack). This page is the correct cart total.

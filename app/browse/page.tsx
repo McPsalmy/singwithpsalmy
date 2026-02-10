@@ -42,7 +42,6 @@ function jaccard(a: string[], b: string[]) {
   return union === 0 ? 0 : inter / union;
 }
 
-// Levenshtein distance (typo tolerance)
 function levenshtein(a: string, b: string) {
   if (a === b) return 0;
   if (!a) return b.length;
@@ -50,7 +49,6 @@ function levenshtein(a: string, b: string) {
 
   const m = a.length;
   const n = b.length;
-
   const dp = new Array(n + 1);
   for (let j = 0; j <= n; j++) dp[j] = j;
 
@@ -73,16 +71,9 @@ function editSimilarity(a: string, b: string) {
   if (!A || !B) return 0;
   const d = levenshtein(A, B);
   const maxLen = Math.max(A.length, B.length);
-  return maxLen === 0 ? 1 : 1 - d / maxLen; // 0..1
+  return maxLen === 0 ? 1 : 1 - d / maxLen;
 }
 
-/**
- * Fuzzy match score in [0..1]
- * - Exact substring => 1
- * - Token coverage (word order irrelevant)
- * - Bigram similarity (handles spacing/punct)
- * - Edit similarity token-to-token (handles typos: psamy -> psalmy, sammy -> psalmy-ish)
- */
 function matchScore(queryRaw: string, titleRaw: string) {
   const q = norm(queryRaw);
   const t = norm(titleRaw);
@@ -93,7 +84,6 @@ function matchScore(queryRaw: string, titleRaw: string) {
   const qTokens = q.split(" ").filter(Boolean);
   const tTokens = t.split(" ").filter(Boolean);
 
-  // Token coverage: query tokens appearing anywhere in title
   let hits = 0;
   for (const tok of qTokens) {
     if (tok.length < 2) continue;
@@ -101,30 +91,18 @@ function matchScore(queryRaw: string, titleRaw: string) {
   }
   const tokenScore = hits / Math.max(1, qTokens.length);
 
-  // Bigram similarity
   const bgScore = jaccard(bigrams(q), bigrams(t));
 
-  // Edit similarity: best match between query tokens and title tokens
-  // Also compare query as a whole vs title as a whole
-  let bestTok = 0;
+  let bestTokSum = 0;
   for (const qt of qTokens) {
     let best = 0;
-    for (const tt of tTokens) {
-      best = Math.max(best, editSimilarity(qt, tt));
-    }
-    bestTok += best;
+    for (const tt of tTokens) best = Math.max(best, editSimilarity(qt, tt));
+    bestTokSum += best;
   }
-  const editTokScore = bestTok / Math.max(1, qTokens.length);
+  const editTokScore = bestTokSum / Math.max(1, qTokens.length);
   const editWholeScore = editSimilarity(q, t);
 
-  // Combine (weighted towards typo tolerance + partial)
-  const score = Math.max(
-    tokenScore,
-    bgScore,
-    editTokScore * 0.95,
-    editWholeScore * 0.85
-  );
-
+  const score = Math.max(tokenScore, bgScore, editTokScore * 0.95, editWholeScore * 0.85);
   return Math.min(1, score);
 }
 
@@ -141,11 +119,11 @@ export default function BrowsePage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Custom dropdown open state
+  // custom dropdown
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement | null>(null);
 
-  // Persist view mode
+  // persist view
   useEffect(() => {
     const saved = localStorage.getItem("swp_browse_view");
     if (saved === "grid" || saved === "list") setView(saved);
@@ -155,7 +133,7 @@ export default function BrowsePage() {
     localStorage.setItem("swp_browse_view", view);
   }, [view]);
 
-  // Close dropdown on outside click
+  // close dropdown on outside click
   useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (!sortRef.current) return;
@@ -168,7 +146,7 @@ export default function BrowsePage() {
   async function load() {
     setLoading(true);
     const res = await fetch("/api/public/tracks", { cache: "no-store" });
-    const out = await res.json();
+    const out = await res.json().catch(() => ({}));
     setLoading(false);
 
     if (!res.ok || !out?.ok) {
@@ -180,21 +158,31 @@ export default function BrowsePage() {
     setTracks(out.data ?? []);
   }
 
+  // initial load + read query params from URL
   useEffect(() => {
-    load();
-  }, []);
+  // 1) read URL params first
+  const url = new URL(window.location.href);
+  const initialQ = url.searchParams.get("q") || "";
+  const initialSort = url.searchParams.get("sort");
+
+  if (initialQ) setQ(initialQ);
+  if (initialSort === "name" || initialSort === "date" || initialSort === "downloads") {
+    setSort(initialSort);
+  }
+
+  // 2) then load tracks
+  load();
+}, []);
+
 
   const filtered = useMemo(() => {
     const query = q.trim();
 
-    // compute scores
     const withScores = tracks
       .map((t) => ({ t, score: matchScore(query, t.title) }))
-      // If searching: only keep >= 0.5
       .filter((x) => (query ? x.score >= 0.5 : true));
 
     if (query) {
-      // rank by score best -> worst, then name
       withScores.sort((a, b) => b.score - a.score || a.t.title.localeCompare(b.t.title));
       return withScores.map((x) => x.t);
     }
@@ -204,10 +192,7 @@ export default function BrowsePage() {
     if (sort === "name") {
       list.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sort === "date") {
-      list.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     } else {
       list.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
     }
@@ -226,9 +211,8 @@ export default function BrowsePage() {
           </div>
 
           <div className="flex flex-col gap-3 md:items-end">
-            {/* Sort: custom dropdown (no white OS menu) */}
             <div className="flex items-center gap-2">
-              <div className="text-sm text-white/60">Sort by</div>
+              <div className="text-xs text-white/60">Sort by</div>
 
               <div ref={sortRef} className="relative">
                 <button
@@ -241,7 +225,7 @@ export default function BrowsePage() {
                 </button>
 
                 {sortOpen && (
-                  <div className="absolute right-0 mt-2 w-40 overflow-hidden rounded-2xl bg-black/40 ring-1 ring-white/15 backdrop-blur">
+                  <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl bg-black/90 ring-1 ring-white/15 backdrop-blur">
                     {(["name", "date", "downloads"] as const).map((k) => (
                       <button
                         key={k}
@@ -251,7 +235,7 @@ export default function BrowsePage() {
                           setSortOpen(false);
                         }}
                         className={[
-                          "w-full px-4 py-1 text-left text-sm hover:bg-white/10",
+                          "w-full px-4 py-3 text-left text-sm hover:bg-white/10",
                           k === sort ? "text-white" : "text-white/75",
                         ].join(" ")}
                       >
@@ -263,7 +247,6 @@ export default function BrowsePage() {
               </div>
             </div>
 
-            {/* Search + view */}
             <div className="flex items-center justify-between gap-3 md:w-[420px]">
               <div className="flex-1 rounded-2xl bg-white/5 p-2 ring-1 ring-white/10">
                 <input

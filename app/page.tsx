@@ -1,19 +1,52 @@
 import SiteHeader from "./components/SiteHeader";
 import CoverTile from "./components/CoverTile";
 import HomeSearch from "./components/HomeSearch";
+import { headers } from "next/headers";
 
+type Track = {
+  id: string;
+  title: string;
+  slug: string;
+  price_naira: number;
+  downloads: number;
+  created_at: string;
+};
 
-const categories = ["All", "Afrobeats", "Gospel", "Pop", "Hip-hop", "R&B", "More"];
+async function getTracks(): Promise<Track[]> {
+  const h = await headers();
+  const host = h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const base = host ? `${proto}://${host}` : "";
 
-const featured = [
-  { title: "Example Song A", slug: "example-song-a", cat: "Afrobeats" },
-  { title: "Example Song B", slug: "example-song-b", cat: "Gospel" },
-  { title: "Example Song C", slug: "example-song-c", cat: "Pop" },
-  { title: "Example Song D", slug: "example-song-d", cat: "Hip-hop" },
-  { title: "Example Song E", slug: "example-song-e", cat: "Afrobeats" },
-];
+  const res = await fetch(`${base}/api/public/tracks`, { cache: "no-store" }).catch(() => null);
+  if (!res || !res.ok) return [];
 
-export default function Home() {
+  const out = await res.json().catch(() => ({}));
+  if (!out?.ok) return [];
+
+  return (out.data ?? []) as Track[];
+}
+
+export default async function Home() {
+  const tracks = await getTracks();
+
+    // Featured = random picks (stable for this page load)
+  const featured = (() => {
+    const pool = [...tracks];
+    // Fisher–Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, 5);
+  })();
+
+  const mostDownloaded = [...tracks]
+    .sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0))
+    .slice(0, 4);
+
+  const newlyAdded = tracks.slice(0, 5); // already ordered newest-first by your API
+
   return (
     <main className="min-h-screen text-white">
       <SiteHeader />
@@ -34,25 +67,8 @@ export default function Home() {
 
           </div>
 
-          {/* Category pills */}
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            {categories.map((c, i) => (
-              <button
-                key={c}
-                className={[
-                  "rounded-xl px-4 py-2 text-sm ring-1 transition",
-                  i === 0
-                    ? "bg-white/10 text-white ring-white/20"
-                    : "bg-white/5 text-white/70 ring-white/10 hover:bg-white/10 hover:text-white",
-                ].join(" ")}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
           {/* Quick actions */}
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row">
           
             <div className="mt-7 mx-auto max-w-2xl rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -98,28 +114,31 @@ export default function Home() {
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-            {featured.map((s) => (
-              <a
-                key={s.slug}
-                href={`/track/${s.slug}`}
-                className="group rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 hover:bg-white/10"
-              >
-                <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-                  <div className="aspect-square w-full">
-                    <CoverTile slug={s.slug} className="h-full w-full object-cover" />
-                  </div>
-                </div>
+           {featured.map((s) => (
+  <a
+    key={s.id}
+    href={`/track/${s.slug}`}
+    className="group rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 hover:bg-white/10"
+  >
+    <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+      <div className="aspect-square w-full">
+        <CoverTile slug={s.slug} className="h-full w-full object-cover" />
+      </div>
+    </div>
 
-                <div className="mt-3">
-                  <div className="text-sm font-semibold">{s.title}</div>
-                  <div className="mt-1 text-xs text-white/60">{s.cat}</div>
-                </div>
+    <div className="mt-3">
+      <div className="text-sm font-semibold">{s.title}</div>
+      <div className="mt-1 text-xs text-white/60">
+        ₦{Number(s.price_naira ?? 700).toLocaleString("en-NG")} • {(s.downloads ?? 0).toLocaleString("en-NG")} downloads
+      </div>
+    </div>
 
-                <div className="mt-3 text-xs text-white/70 group-hover:text-white">
-                  View Song →
-                </div>
-              </a>
-            ))}
+    <div className="mt-3 text-xs text-white/70 group-hover:text-white">
+      View Song →
+    </div>
+  </a>
+))}
+
           </div>
         </div>
 
@@ -142,30 +161,28 @@ export default function Home() {
   </div>
 
   <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-    {[
-      { title: "Example Song A", slug: "example-song-a", note: "High energy • crowd favorite" },
-      { title: "Example Song B", slug: "example-song-b", note: "Great for practice sessions" },
-      { title: "Example Song C", slug: "example-song-c", note: "Smooth and fun to sing" },
-      { title: "Example Song D", slug: "example-song-d", note: "Great for parties" },
-    ].map((s) => (
-      <a
-        key={s.slug}
-        href={`/track/${s.slug}`}
-        className="flex items-center justify-between gap-4 rounded-2xl bg-white/5 px-4 py-3 ring-1 ring-white/10 hover:bg-white/10"
-      >
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 overflow-hidden rounded-xl ring-1 ring-white/10">
-            <CoverTile slug={s.slug} className="h-full w-full object-cover" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold">{s.title}</div>
-            <div className="text-xs text-white/60">{s.note}</div>
-          </div>
+    {mostDownloaded.map((s) => (
+  <a
+    key={s.id}
+    href={`/track/${s.slug}`}
+    className="flex items-center justify-between gap-4 rounded-2xl bg-white/5 px-4 py-3 ring-1 ring-white/10 hover:bg-white/10"
+  >
+    <div className="flex items-center gap-3">
+      <div className="h-12 w-12 overflow-hidden rounded-xl ring-1 ring-white/10">
+        <CoverTile slug={s.slug} className="h-full w-full object-cover" />
+      </div>
+      <div>
+        <div className="text-sm font-semibold">{s.title}</div>
+        <div className="text-xs text-white/60">
+          {(s.downloads ?? 0).toLocaleString("en-NG")} downloads
         </div>
+      </div>
+    </div>
 
-        <div className="text-xs text-white/70">View →</div>
-      </a>
-    ))}
+    <div className="text-xs text-white/70">View →</div>
+  </a>
+))}
+
   </div>
 </div>
 
@@ -188,34 +205,31 @@ export default function Home() {
   </div>
 
   <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-    {[
-      { title: "Newest Song", slug: "example-song-e", cat: "Afrobeats" },
-      { title: "New Song 2", slug: "example-song-d", cat: "Hip-hop" },
-      { title: "New Song 3", slug: "example-song-c", cat: "Pop" },
-      { title: "New Song 4", slug: "example-song-b", cat: "Gospel" },
-      { title: "New Song 5", slug: "example-song-a", cat: "Afrobeats" },
-    ].map((s) => (
-      <a
-        key={s.slug}
-        href={`/track/${s.slug}`}
-        className="group rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 hover:bg-white/10"
-      >
-        <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-          <div className="aspect-square w-full">
-            <CoverTile slug={s.slug} className="h-full w-full object-cover" />
-          </div>
-        </div>
+   {newlyAdded.map((s) => (
+  <a
+    key={s.id}
+    href={`/track/${s.slug}`}
+    className="group rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 hover:bg-white/10"
+  >
+    <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
+      <div className="aspect-square w-full">
+        <CoverTile slug={s.slug} className="h-full w-full object-cover" />
+      </div>
+    </div>
 
-        <div className="mt-3">
-          <div className="text-sm font-semibold">{s.title}</div>
-          <div className="mt-1 text-xs text-white/60">{s.cat}</div>
-        </div>
+    <div className="mt-3">
+      <div className="text-sm font-semibold">{s.title}</div>
+      <div className="mt-1 text-xs text-white/60">
+        ₦{Number(s.price_naira ?? 700).toLocaleString("en-NG")}
+      </div>
+    </div>
 
-        <div className="mt-3 text-xs text-white/70 group-hover:text-white">
-          View Song →
-        </div>
-      </a>
-    ))}
+    <div className="mt-3 text-xs text-white/70 group-hover:text-white">
+      View Song →
+    </div>
+  </a>
+))}
+
   </div>
 </div>
 

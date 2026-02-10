@@ -5,18 +5,33 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const id = String(body?.id || "").trim();
-    const status = body?.status === "fulfilled" ? "fulfilled" : "open";
+    const status =
+  body?.status === "fulfilled"
+    ? "fulfilled"
+    : body?.status === "archived"
+    ? "archived"
+    : "open";
+
 
     if (!id) {
       return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
     }
 
-    const update =
-      status === "fulfilled"
-        ? { status: "fulfilled", fulfilled_at: new Date().toISOString() }
-        : { status: "open", fulfilled_at: null };
+    const nowIso = new Date().toISOString();
 
-    const { error } = await supabaseAdmin.from("song_requests").update(update).eq("id", id);
+const update =
+  status === "fulfilled"
+    ? { status: "fulfilled", fulfilled_at: nowIso, archived_at: null }
+    : status === "archived"
+    ? { status: "archived", archived_at: nowIso }
+    : { status: "open", fulfilled_at: null, archived_at: null };
+
+
+    const { error } = await supabaseAdmin()
+     .from("song_requests")
+     .update(update)
+     .eq("id", id);
+
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

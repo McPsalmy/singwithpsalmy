@@ -1,7 +1,10 @@
 import SiteHeader from "../components/SiteHeader";
+import AdminGate from "../components/AdminGate";
+
 
 export default function PsalmyHomePage() {
   return (
+  <AdminGate>
     <main className="min-h-screen text-white">
       <SiteHeader />
 
@@ -53,5 +56,6 @@ export default function PsalmyHomePage() {
         </p>
       </section>
     </main>
+  </AdminGate>
   );
 }

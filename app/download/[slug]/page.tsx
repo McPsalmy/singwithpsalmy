@@ -1,7 +1,7 @@
 import SiteHeader from "../../components/SiteHeader";
 import CoverTile from "../../components/CoverTile";
 import AutoDownload from "./AutoDownload";
-
+import { cookies } from "next/headers";
 
 type Params = { slug: string };
 
@@ -25,6 +25,11 @@ function versionLabel(v: string) {
   return "Performance version (instrumental only)";
 }
 
+async function isMemberFromCookies() {
+  const store = await cookies();
+  return store.get("swp_member")?.value === "1";
+}
+
 export default async function DownloadPage({
   params,
   searchParams,
@@ -45,10 +50,45 @@ export default async function DownloadPage({
   const slug = resolvedParams?.slug ?? "";
   const v = normalizeVersion(sp?.v);
 
-  const title = slug ? niceTitle(slug) : "Download";
+  const isMember = await isMemberFromCookies();
 
-  const suffix = v === "full-guide" ? "full-guide" : v === "low-guide" ? "low-guide" : "instrumental";
-  const file = `/videos/full/${slug}-${suffix}-full.mp4`;
+  // Block non-members
+  if (!isMember) {
+    return (
+      <main className="min-h-screen text-white">
+        <SiteHeader />
+
+        <section className="mx-auto max-w-3xl px-5 py-16 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Members-only download
+          </h1>
+
+          <p className="mt-4 text-sm text-white/70">
+            Full-length karaoke videos are available to members or after checkout.
+          </p>
+
+          <div className="mt-8 flex flex-col items-center gap-3">
+            <a
+              href="/membership"
+              className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
+            >
+              View membership plans
+            </a>
+
+            <a
+              href={`/track/${slug}`}
+              className="rounded-2xl bg-white/10 px-6 py-3 text-sm ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Back to track
+            </a>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  // Member download UI
+  const title = slug ? niceTitle(slug) : "Download";
 
   return (
     <main className="min-h-screen text-white">
@@ -70,21 +110,11 @@ export default async function DownloadPage({
             </div>
           </div>
 
-          <AutoDownload href={file} />
+          <AutoDownload slug={slug} version={v} />
 
-          <div className="mt-6 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-            <div className="text-sm text-white/70">Click the download link if auto-download doesn't start in 5s:</div>
-            <a
-              href={file}
-              className="mt-2 block break-all rounded-xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15 hover:bg-white/15"
-            >
-              {file}
-            </a>
-            <p className="mt-3 text-xs text-white/55">
-              This link will work once you upload the full video file into{" "}
-              <span className="text-white">public/videos/full</span>.
-            </p>
-          </div>
+
+          {/* Manual download link is shown inside AutoDownload */}
+
 
           <a
             href={`/track/${slug}`}

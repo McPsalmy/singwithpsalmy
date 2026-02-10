@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin()
     .from("tracks")
-    .select("id,title,slug,category,price_naira,downloads,is_active,created_at")
+    .select("id,title,slug,price_naira,downloads,is_active,created_at")
     .order("created_at", { ascending: false });
 
   if (error) {

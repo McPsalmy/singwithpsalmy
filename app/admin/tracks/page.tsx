@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import SiteHeader from "../../components/SiteHeader";
+import AdminGate from "../../components/AdminGate";
+
 
 type TrackRow = {
   id: string;
   title: string;
   slug: string;
-  category: string;
   price_naira: number;
   downloads: number;
   is_active: boolean;
@@ -49,6 +50,7 @@ export default function AdminTracksPage() {
   const activeCount = useMemo(() => tracks.filter((t) => t.is_active).length, [tracks]);
 
   return (
+    <AdminGate>
     <main className="min-h-screen text-white">
       <SiteHeader />
 
@@ -90,7 +92,6 @@ export default function AdminTracksPage() {
         <div className="mt-8 overflow-hidden rounded-3xl ring-1 ring-white/10">
           <div className="grid grid-cols-12 gap-0 bg-white/5 px-4 py-3 text-xs text-white/60">
             <div className="col-span-5">Title</div>
-            <div className="col-span-3">Category</div>
             <div className="col-span-2">Price</div>
             <div className="col-span-2 text-right">Status</div>
           </div>
@@ -113,7 +114,6 @@ export default function AdminTracksPage() {
                   </div>
                 </div>
 
-                <div className="col-span-3 text-sm text-white/70">{t.category}</div>
                 <div className="col-span-2 text-sm text-white/70">₦{Number(t.price_naira).toLocaleString("en-NG")}</div>
 
                 <div className="col-span-2 flex justify-end">
@@ -138,5 +138,6 @@ export default function AdminTracksPage() {
         </p>
       </section>
     </main>
+    </AdminGate>
   );
 }

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabaseAdmin()
       .from("tracks")
       .update({ is_active })
       .eq("id", id);

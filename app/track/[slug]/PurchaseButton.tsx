@@ -1,30 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type VersionKey = "full-guide" | "instrumental" | "low-guide";
 
 type Props = {
   slug: string;
+  title: string;
 };
 
-function niceTitle(slug: string) {
-  return slug
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
 
-export default function PurchaseButton({ slug }: Props) {
+export default function PurchaseButton({ slug, title }: Props) {
   const [isMember, setIsMember] = useState(false);
 
   // FULL-LENGTH selection (not previews)
-  const [selected, setSelected] = useState<VersionKey>("instrumental");
+  const [selected, setSelected] = useState<VersionKey>("instrumental"); // will be synced from preview on load
 
   // toast
   const [toast, setToast] = useState<string | null>(null);
-
-  const title = useMemo(() => niceTitle(slug), [slug]);
 
   useEffect(() => {
     setIsMember(localStorage.getItem("swp_member") === "1");
@@ -42,6 +35,28 @@ export default function PurchaseButton({ slug }: Props) {
     setToast("Added to cart ✓");
     setTimeout(() => setToast(null), 1200);
   }
+
+  useEffect(() => {
+  const storageKey = `swp_version_${slug}`;
+
+  const read = () => {
+    const saved = localStorage.getItem(storageKey) as VersionKey | null;
+    if (saved === "full-guide" || saved === "instrumental" || saved === "low-guide") {
+      setSelected(saved);
+    }
+  };
+
+  // initial sync
+  read();
+
+  // keep synced when VersionPreview changes it
+  window.addEventListener("swp_version_changed", read as any);
+
+  return () => {
+    window.removeEventListener("swp_version_changed", read as any);
+  };
+}, [slug]);
+
 
   return (
     <div className="mt-8">
@@ -61,7 +76,12 @@ export default function PurchaseButton({ slug }: Props) {
             name="full_version"
             value="full-guide"
             checked={selected === "full-guide"}
-            onChange={() => setSelected("full-guide")}
+            onChange={() => {
+              setSelected("full-guide");
+              localStorage.setItem(`swp_version_${slug}`, "full-guide");
+              window.dispatchEvent(new Event("swp_version_changed"));
+            }}
+
           />
         </label>
 
@@ -75,7 +95,12 @@ export default function PurchaseButton({ slug }: Props) {
             name="full_version"
             value="instrumental"
             checked={selected === "instrumental"}
-            onChange={() => setSelected("instrumental")}
+            onChange={() => {
+              setSelected("instrumental");
+              localStorage.setItem(`swp_version_${slug}`, "instrumental");
+              window.dispatchEvent(new Event("swp_version_changed"));
+            }}
+
           />
         </label>
 
@@ -89,7 +114,12 @@ export default function PurchaseButton({ slug }: Props) {
             name="full_version"
             value="low-guide"
             checked={selected === "low-guide"}
-            onChange={() => setSelected("low-guide")}
+            onChange={() => {
+              setSelected("low-guide");
+              localStorage.setItem(`swp_version_${slug}`, "low-guide");
+              window.dispatchEvent(new Event("swp_version_changed"));
+            }}
+
           />
         </label>
       </div>

@@ -146,8 +146,8 @@ export default function CartPage() {
               </div>
             </div>
             
-            <div className="mt-4 rounded-2xl bg-white/5 p-4 text-sm text-white/70 ring-1 ring-white/10">
-                <span className="font-semibold text-white">Tip:</span> Members download instantly (no checkout) while subscription is active.
+            <div className="mt-4 rounded-2xl bg-white/5 p-4 text-xs text-white/70 ring-1 ring-white/10">
+                <span className="font-semibold text-white">Tip:  </span>  Subscribed members download instantly (no checkout) while subscription is active.
             </div>
 
             <a
@@ -162,9 +162,12 @@ export default function CartPage() {
               Checkout
             </a>
 
-            <p className="mt-4 text-xs text-white/55">
-              Payments will be connected next. This is the cart flow UI.
-            </p>
+            <p className="mt-3 text-xs text-white/55 text-center">
+  Already paid but didn’t get your download?{" "}
+  <a href="/recover" className="underline hover:text-white">
+    Recover purchase
+  </a>
+</p>
           </div>
         </div>
       </section>

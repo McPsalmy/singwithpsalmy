@@ -14,7 +14,8 @@ export default function MemberToggle() {
     const next = !isMember;
     setIsMember(next);
     localStorage.setItem("swp_member", next ? "1" : "0");
-    window.location.reload(); // simplest for now
+    document.cookie = `swp_member=${next ? "1" : "0"}; path=/; max-age=31536000`;
+    window.location.reload();
   }
 
   return (

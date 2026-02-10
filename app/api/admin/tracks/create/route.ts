@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
 
 function slugify(input: string) {
   return input
@@ -13,7 +13,27 @@ function slugify(input: string) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { ok: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" },
+        { status: 500 }
+      );
+    }
+    if (!serviceRoleKey) {
+      return NextResponse.json(
+        { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
+
+    const body = await req.json().catch(() => ({}));
 
     const title = String(body?.title || "").trim();
     const price_naira = Number(body?.price_naira ?? 700) || 700;
@@ -24,7 +44,7 @@ export async function POST(req: Request) {
 
     const slug = slugify(title);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("tracks")
       .insert([
         {
@@ -35,14 +55,14 @@ export async function POST(req: Request) {
           is_active: true,
         },
       ])
-      .select("id")
+      .select("id,slug")
       .single();
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, id: data.id, slug });
+    return NextResponse.json({ ok: true, id: data.id, slug: data.slug });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },

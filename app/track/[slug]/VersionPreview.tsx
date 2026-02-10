@@ -13,39 +13,34 @@ const versions: {
   label: string;
   sub: string;
 }[] = [
-  {
-    key: "full-guide",
-    label: "Practice track",
-    sub: "(full guide vocals)",
-  },
-  {
-    key: "instrumental",
-    label: "Performance version",
-    sub: "(instrumental only)",
-  },
-  {
-    key: "low-guide",
-    label: "Reduced vocals",
-    sub: "(low guide vocals)",
-  },
+  { key: "full-guide", label: "Practice track", sub: "(full guide vocals)" },
+  { key: "instrumental", label: "Performance version", sub: "(instrumental only)" },
+  { key: "low-guide", label: "Reduced vocals", sub: "(low guide vocals)" },
 ];
 
 export default function VersionPreview({ slug }: Props) {
   const storageKey = `swp_version_${slug}`;
-
   const [active, setActive] = useState<VersionKey>("instrumental");
 
-  // On load: if user previously picked a version, reuse it
+  const [src, setSrc] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Sync active tab with localStorage + PurchaseButton
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey) as VersionKey | null;
-    if (saved === "full-guide" || saved === "instrumental" || saved === "low-guide") {
-      setActive(saved);
-    } else {
-      localStorage.setItem(storageKey, "instrumental");
-    }
-    // Tell other components (PurchaseButton) to read the current version
-    window.dispatchEvent(new Event("swp_version_changed"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const read = () => {
+      const saved = localStorage.getItem(storageKey) as VersionKey | null;
+      if (saved === "full-guide" || saved === "instrumental" || saved === "low-guide") {
+        setActive(saved);
+      } else {
+        localStorage.setItem(storageKey, "instrumental");
+        setActive("instrumental");
+      }
+    };
+
+    read();
+    window.addEventListener("swp_version_changed", read as any);
+    return () => window.removeEventListener("swp_version_changed", read as any);
   }, [storageKey]);
 
   function choose(next: VersionKey) {
@@ -54,11 +49,53 @@ export default function VersionPreview({ slug }: Props) {
     window.dispatchEvent(new Event("swp_version_changed"));
   }
 
-  const src = useMemo(() => {
-    // Naming convention:
-    // /videos/previews/<slug>-<version>-preview_web.mp4
-    return `/videos/previews/${slug}-${active}-preview_web.mp4`;
+  // Fetch signed URL whenever active changes
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      setLoading(true);
+      setErr(null);
+
+      const res = await fetch(
+        `/api/public/preview-url?slug=${encodeURIComponent(slug)}&v=${encodeURIComponent(active)}`,
+        { cache: "no-store" }
+      ).catch(() => null);
+
+      if (!res) {
+        if (!cancelled) {
+          setErr("Could not reach server for preview URL.");
+          setSrc("");
+          setLoading(false);
+        }
+        return;
+      }
+
+      const out = await res.json().catch(() => ({}));
+
+      if (!res.ok || !out?.ok || !out?.url) {
+        if (!cancelled) {
+          setErr(out?.error || "Preview not available yet (upload the preview file).");
+          setSrc("");
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setSrc(String(out.url));
+        setLoading(false);
+      }
+    }
+
+    if (slug) run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [slug, active]);
+
+  const videoKey = useMemo(() => `${slug}-${active}-${src}`, [slug, active, src]);
 
   return (
     <div>
@@ -84,14 +121,25 @@ export default function VersionPreview({ slug }: Props) {
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl bg-black/40 ring-1 ring-white/10">
-        <video
-          key={src}
-          className="w-full"
-          controls
-          playsInline
-          preload="metadata"
-          src={src}
-        />
+        {loading ? (
+          <div className="px-4 py-10 text-sm text-white/70">Loading preview…</div>
+        ) : err ? (
+          <div className="px-4 py-10 text-sm text-white/70">❌ {err}</div>
+        ) : src ? (
+  <video
+    key={videoKey}
+    className="w-full"
+    controls
+    playsInline
+    preload="metadata"
+    src={src}
+  />
+) : (
+  <div className="px-4 py-10 text-sm text-white/70">
+    ❌ Preview not available yet (upload the preview file).
+  </div>
+)
+}
       </div>
 
       <p className="mt-3 text-xs text-white/60">
