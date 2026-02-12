@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+function addMonths(from: Date, months: number) {
+  const d = new Date(from);
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+
+  // Handle month rollover (e.g. Jan 31 + 1 month)
+  if (d.getDate() < day) d.setDate(0);
+  return d;
+}
 
 export async function GET(req: Request) {
   try {
@@ -111,6 +120,82 @@ if (orderErr) {
   );
 }
 
+// If this was a MEMBERSHIP payment, create/extend membership
+if (metadata?.kind === "membership") {
+  const m = metadata?.membership || {};
+  const plan = String(m?.plan || "").trim().toLowerCase();
+  const months = Number(m?.months || 0);
+
+  if (!email) {
+    return NextResponse.json({ ok: false, error: "Missing email for membership" }, { status: 400 });
+  }
+  if (!plan || !months || months < 1) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid membership metadata" },
+      { status: 400 }
+    );
+  }
+
+  const paidAtDate = new Date(data.paid_at);
+
+  // If the user already has an active membership, extend from current expiry
+  const { data: existing } = await supabase
+    .from("memberships")
+    .select("expires_at,status")
+    .eq("email", email)
+    .in("status", ["active"])
+    .order("expires_at", { ascending: false })
+    .limit(1);
+
+  const currentExpiry =
+    existing?.[0]?.expires_at ? new Date(existing[0].expires_at) : null;
+
+  const base = currentExpiry && currentExpiry.getTime() > Date.now()
+    ? currentExpiry
+    : paidAtDate;
+
+  const expiresAt = addMonths(base, months);
+
+  const { error: memErr } = await supabase.from("memberships").insert({
+    email,
+    plan,
+    months,
+    status: "active",
+    paystack_reference: reference,
+    started_at: paidAtDate.toISOString(),
+    expires_at: expiresAt.toISOString(),
+  });
+
+  if (memErr) {
+    return NextResponse.json(
+      { ok: false, error: memErr.message || "Could not save membership" },
+      { status: 500 }
+    );
+  }
+
+  // Set member cookie (DB is still the source of truth)
+  const resp = NextResponse.json({
+    ok: true,
+    reference,
+    kind: "membership",
+    plan,
+    months,
+    expires_at: expiresAt.toISOString(),
+    paid_at: data?.paid_at,
+    currency: data?.currency,
+  });
+
+  resp.cookies.set("swp_member", "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: true,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 400, // up to ~400 days cookie; expiry is enforced by DB
+  });
+
+  return resp;
+}
+
 
     return NextResponse.json({
       ok: true,
@@ -121,7 +206,10 @@ if (orderErr) {
       items,
       metadata,
     });
+
+    
   } catch (e: any) {
+    
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
       { status: 500 }
