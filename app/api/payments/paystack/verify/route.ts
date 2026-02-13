@@ -156,15 +156,55 @@ if (metadata?.kind === "membership") {
 
   const expiresAt = addMonths(base, months);
 
-  const { error: memErr } = await supabase.from("memberships").insert({
-    email,
-    plan,
-    months,
-    status: "active",
-    paystack_reference: reference,
-    started_at: paidAtDate.toISOString(),
-    expires_at: expiresAt.toISOString(),
-  });
+  const { error: memErr } = await supabase
+  .from("memberships")
+  .upsert(
+    {
+      email,
+      plan,
+      months,
+      status: "active",
+      paystack_reference: reference,
+      started_at: paidAtDate.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    },
+    { onConflict: "email" }
+  );
+
+    // 1) Record this membership payment in the ledger (idempotent by reference)
+  const amountKobo = Number(data?.amount || 0);
+  const amountNaira = Math.round(amountKobo / 100);
+
+  const { error: mpErr } = await supabase
+    .from("membership_payments")
+    .insert({
+      paystack_reference: reference,
+      email,
+      plan,
+      months,
+      amount: amountNaira,
+      currency: String(data?.currency || "NGN"),
+      status: "success",
+      paid_at: data?.paid_at || null,
+    });
+
+  // If this reference was already recorded, do NOT extend again (prevents double-credit)
+  if (mpErr) {
+    const msg = (mpErr as any)?.message || "";
+    const looksLikeDuplicate =
+      msg.toLowerCase().includes("duplicate") ||
+      msg.toLowerCase().includes("unique");
+
+    if (!looksLikeDuplicate) {
+      return NextResponse.json(
+        { ok: false, error: mpErr.message || "Could not save membership payment" },
+        { status: 500 }
+      );
+    }
+    // Duplicate reference → treat as already processed; continue to return current membership status
+  }
+
+
 
   if (memErr) {
     return NextResponse.json(

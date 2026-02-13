@@ -36,12 +36,16 @@ export default function PsalmyHomePage() {
 </a>
 
 
-          <div className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-            <div className="text-lg font-semibold">Subscribers (Coming soon)</div>
-            <p className="mt-2 text-sm text-white/65">
-              View membership status once payments are enabled.
-            </p>
-          </div>
+         <a
+  href="/admin/memberships"
+  className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 hover:bg-white/10"
+>
+  <div className="text-lg font-semibold">Subscribers</div>
+  <p className="mt-2 text-sm text-white/65">
+    View membership status and handle refunds by Paystack reference.
+  </p>
+</a>
+
 
           <div className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
             <div className="text-lg font-semibold">Analytics (Coming soon)</div>
