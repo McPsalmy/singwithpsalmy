@@ -131,6 +131,13 @@ export default function AdminMembershipsPage() {
         <SiteHeader />
 
         <section className="mx-auto max-w-5xl px-5 py-12">
+            <a
+  href="/psalmy"
+  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1 text-xs ring-1 ring-white/15 hover:bg-white/15"
+>
+  ← Back to dashboard
+</a>
+
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">Subscribers</h1>

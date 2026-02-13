@@ -151,6 +151,13 @@ export default function AdminRequestsPage() {
         <SiteHeader />
 
         <section className="mx-auto max-w-6xl px-5 py-12">
+          <a
+  href="/psalmy"
+  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1 text-xs ring-1 ring-white/15 hover:bg-white/15"
+>
+  ← Back to dashboard
+</a>
+
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h1 className="text-3xl font-semibold tracking-tight">Admin: Requests</h1>
