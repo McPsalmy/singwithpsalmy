@@ -176,7 +176,7 @@ export default function SiteHeader() {
 
       {/* Mobile dropdown */}
       {menuOpen ? (
-        <div className="md:hidden border-t border-white/10 bg-black/80">
+        <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
