@@ -1,7 +1,8 @@
-export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
@@ -9,6 +10,7 @@ export async function GET() {
     const memberFlag = store.get("swp_member")?.value === "1";
     const email = store.get("swp_member_email")?.value || "";
 
+    // If no membership cookies, user is not a member
     if (!memberFlag || !email) {
       return NextResponse.json({ ok: true, isMember: false });
     }
@@ -26,6 +28,7 @@ export async function GET() {
       auth: { persistSession: false },
     });
 
+    // Get most recent active membership for this email
     const { data, error } = await supabase
       .from("memberships")
       .select("expires_at,status,plan")
@@ -39,16 +42,25 @@ export async function GET() {
     }
 
     const row = data?.[0];
-    const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
-    const isActive = expiresAt > Date.now();
+    const expiresAtMs = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
+    const isActive = expiresAtMs > Date.now();
 
-    return NextResponse.json({
+    // Build response JSON
+    const res = NextResponse.json({
       ok: true,
       isMember: isActive,
       email,
       expires_at: row?.expires_at ?? null,
       plan: row?.plan ?? null,
     });
+
+    // If not active anymore (expired or deleted), clear member cookies
+    if (!isActive) {
+      res.cookies.set("swp_member", "", { path: "/", maxAge: 0 });
+      res.cookies.set("swp_member_email", "", { path: "/", maxAge: 0 });
+    }
+
+    return res;
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
