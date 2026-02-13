@@ -102,12 +102,7 @@ function matchScore(queryRaw: string, titleRaw: string) {
   const editTokScore = bestTokSum / Math.max(1, qTokens.length);
   const editWholeScore = editSimilarity(q, t);
 
-  const score = Math.max(
-    tokenScore,
-    bgScore,
-    editTokScore * 0.95,
-    editWholeScore * 0.85
-  );
+  const score = Math.max(tokenScore, bgScore, editTokScore * 0.95, editWholeScore * 0.85);
   return Math.min(1, score);
 }
 
@@ -117,6 +112,41 @@ const SORT_LABEL: Record<"name" | "date" | "downloads", string> = {
   downloads: "Most Downloaded",
 };
 
+// 20 on mobile, 40 on desktop
+function getPageSize() {
+  if (typeof window === "undefined") return 40;
+  return window.matchMedia("(min-width: 768px)").matches ? 40 : 20;
+}
+
+// Compact page buttons like: 1 2 3 … 10
+function getCompactPages(current: number, total: number) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+
+  const pages = new Set<number>();
+  pages.add(1);
+  pages.add(total);
+
+  for (let p = current - 1; p <= current + 1; p++) {
+    if (p > 1 && p < total) pages.add(p);
+  }
+  // also keep 2 and total-1 to reduce "jumpiness"
+  pages.add(2);
+  pages.add(total - 1);
+
+  const arr = Array.from(pages).filter((p) => p >= 1 && p <= total);
+  arr.sort((a, b) => a - b);
+
+  const out: (number | "…")[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    out.push(arr[i]);
+    if (i < arr.length - 1) {
+      const gap = arr[i + 1] - arr[i];
+      if (gap > 1) out.push("…");
+    }
+  }
+  return out;
+}
+
 export default function BrowsePage() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"name" | "date" | "downloads">("name");
@@ -124,9 +154,15 @@ export default function BrowsePage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // custom dropdown
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement | null>(null);
 
+  // pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(40);
+
+  // persist view
   useEffect(() => {
     const saved = localStorage.getItem("swp_browse_view");
     if (saved === "grid" || saved === "list") setView(saved);
@@ -136,6 +172,7 @@ export default function BrowsePage() {
     localStorage.setItem("swp_browse_view", view);
   }, [view]);
 
+  // close dropdown on outside click
   useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (!sortRef.current) return;
@@ -143,6 +180,17 @@ export default function BrowsePage() {
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  // pageSize: 20 mobile / 40 desktop
+  useEffect(() => {
+    function update() {
+      setPageSize(getPageSize());
+    }
+    update();
+
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
   async function load() {
@@ -160,17 +208,14 @@ export default function BrowsePage() {
     setTracks(out.data ?? []);
   }
 
+  // initial load + read query params from URL
   useEffect(() => {
     const url = new URL(window.location.href);
     const initialQ = url.searchParams.get("q") || "";
     const initialSort = url.searchParams.get("sort");
 
     if (initialQ) setQ(initialQ);
-    if (
-      initialSort === "name" ||
-      initialSort === "date" ||
-      initialSort === "downloads"
-    ) {
+    if (initialSort === "name" || initialSort === "date" || initialSort === "downloads") {
       setSort(initialSort);
     }
 
@@ -185,9 +230,7 @@ export default function BrowsePage() {
       .filter((x) => (query ? x.score >= 0.5 : true));
 
     if (query) {
-      withScores.sort(
-        (a, b) => b.score - a.score || a.t.title.localeCompare(b.t.title)
-      );
+      withScores.sort((a, b) => b.score - a.score || a.t.title.localeCompare(b.t.title));
       return withScores.map((x) => x.t);
     }
 
@@ -196,15 +239,28 @@ export default function BrowsePage() {
     if (sort === "name") {
       list.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sort === "date") {
-      list.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     } else {
       list.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
     }
 
     return list;
   }, [tracks, q, sort]);
+
+  // Reset to page 1 when search/sort/view/pageSize changes so users don't land on empty pages
+  useEffect(() => {
+    setPage(1);
+  }, [q, sort, view, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+
+  const pageItems = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, safePage, pageSize]);
+
+  const compactPages = useMemo(() => getCompactPages(safePage, totalPages), [safePage, totalPages]);
 
   return (
     <main className="min-h-screen text-white">
@@ -214,6 +270,14 @@ export default function BrowsePage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-4xl font-semibold tracking-tight">Browse Songs</h1>
+            <p className="mt-2 text-sm text-white/60">
+              Showing{" "}
+              <span className="text-white">
+                {filtered.length.toLocaleString("en-NG")}
+              </span>{" "}
+              song{filtered.length === 1 ? "" : "s"}
+              {loading ? "" : ` • ${pageSize}/page`}
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 md:items-end">
@@ -301,9 +365,8 @@ export default function BrowsePage() {
               No songs found.
             </div>
           ) : view === "grid" ? (
-            // ✅ 2 columns on mobile
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
-              {filtered.map((t) => (
+              {pageItems.map((t) => (
                 <a
                   key={t.id}
                   href={`/track/${t.slug}`}
@@ -325,7 +388,7 @@ export default function BrowsePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((t) => (
+              {pageItems.map((t) => (
                 <a
                   key={t.id}
                   href={`/track/${t.slug}`}
@@ -345,14 +408,71 @@ export default function BrowsePage() {
                     <div className="text-sm font-semibold">
                       ₦{Number(t.price_naira).toLocaleString("en-NG")}
                     </div>
-                    <div className="mt-1 text-xs text-white/60">
-                      {t.downloads || 0} downloads
-                    </div>
+                    <div className="mt-1 text-xs text-white/60">{t.downloads || 0} downloads</div>
                   </div>
                 </a>
               ))}
             </div>
           )}
+
+          {/* Pagination */}
+          {!loading && filtered.length > 0 ? (
+            <div className="mt-10 flex flex-col items-center gap-3">
+              <div className="text-xs text-white/55">
+                Page <span className="text-white">{safePage}</span> of{" "}
+                <span className="text-white">{totalPages}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm ring-1",
+                    safePage <= 1
+                      ? "bg-white/5 text-white/40 ring-white/10"
+                      : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
+                  ].join(" ")}
+                >
+                  Prev
+                </button>
+
+                {compactPages.map((p, idx) =>
+                  p === "…" ? (
+                    <span key={`dots-${idx}`} className="px-2 text-white/50">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={[
+                        "rounded-xl px-3 py-2 text-sm ring-1",
+                        p === safePage
+                          ? "bg-white text-black ring-white/20"
+                          : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
+                      ].join(" ")}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm ring-1",
+                    safePage >= totalPages
+                      ? "bg-white/5 text-white/40 ring-white/10"
+                      : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
+                  ].join(" ")}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
     </main>

@@ -231,22 +231,7 @@ export default function MembershipPage() {
               <span className="font-semibold text-white">₦700</span>.
             </p>
 
-            <div className="mt-4 grid gap-2 text-sm text-white/70 md:grid-cols-3">
-              <div className="rounded-2xl bg-white/5 p-2 text-center ring-1 ring-white/10">
-                <div className="text-sm font-semibold text-white">Practice track</div>
-                <div className="mt-1 text-xs text-white/60">(full guide vocals)</div>
-              </div>
-
-              <div className="rounded-2xl bg-white/5 p-2 text-center ring-1 ring-white/10">
-                <div className="text-sm font-semibold text-white">Performance version</div>
-                <div className="mt-1 text-xs text-white/60">(instrumental only)</div>
-              </div>
-
-              <div className="rounded-2xl bg-white/5 p-2 text-center ring-1 ring-white/10">
-                <div className="text-sm font-semibold text-white">Reduced vocals</div>
-                <div className="mt-1 text-xs text-white/60">(low guide vocals)</div>
-              </div>
-            </div>
+           
           </div>
         </div>
 
