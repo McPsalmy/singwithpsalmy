@@ -2,14 +2,11 @@ import { Instagram, Youtube, Music2 } from "lucide-react";
 import "./globals.css";
 
 export const metadata = {
-    title: {
+  title: {
     default: "SingWithPsalmy — Karaoke practice tracks & performance versions",
     template: "%s — SingWithPsalmy",
   },
-  alternates: {
-    canonical: "/",
-  },
-
+  alternates: { canonical: "/" },
   description:
     "High-quality karaoke practice tracks and performance versions for practice, performance, and pure fun. Browse, preview, and download.",
   metadataBase: new URL(
@@ -17,8 +14,7 @@ export const metadata = {
       process.env.SITE_URL ||
       "http://localhost:3000"
   ),
-
-    robots: {
+  robots: {
     index: true,
     follow: true,
     googleBot: {
@@ -27,7 +23,6 @@ export const metadata = {
       noimageindex: true,
     },
   },
-
   openGraph: {
     title: "SingWithPsalmy — Karaoke practice tracks & performance versions",
     description:
@@ -41,7 +36,6 @@ export const metadata = {
     description:
       "Karaoke practice tracks and performance versions for practice, performance, and pure fun.",
   },
-
 };
 
 export default function RootLayout({
@@ -61,64 +55,66 @@ export default function RootLayout({
           </div>
 
           <div className="relative z-10 flex min-h-screen flex-col">
-            {/* pages */}
             <div className="flex-1">{children}</div>
 
             {/* site-wide footer */}
-            <footer className="mx-auto w-full max-w-6xl px-5 pb-10 pt-10">
-              <div className="flex flex-col gap-3 border-t border-white/10 pt-6 md:flex-row md:items-center md:justify-between">
-                {/* left: copyright + legal links */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-white/55">
-                  <span>© {new Date().getFullYear()} SingWithPsalmy</span>
-                  <span className="text-white/25">•</span>
-                  <a href="/dmca" className="hover:text-white">
-                    DMCA
-                  </a>
-                  <span className="text-white/25">•</span>
-                  <a href="/rights-holder" className="hover:text-white">
-                    Rights-holder contact
-                  </a>
-                  <span className="text-white/25">•</span>
-<a href="/recover" className="hover:text-white">
-  Recover purchase (expires 30 mins)
-</a>
+            <footer className="mx-auto w-full max-w-6xl px-4 pb-10 pt-10 sm:px-5">
+              <div className="border-t border-white/10 pt-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  {/* left: links */}
+                  <div className="text-sm text-white/55">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <span>© {new Date().getFullYear()} SingWithPsalmy</span>
+                      <span className="text-white/25">•</span>
+                      <a href="/dmca" className="hover:text-white">
+                        DMCA
+                      </a>
+                      <span className="text-white/25">•</span>
+                      <a href="/rights-holder" className="hover:text-white">
+                        Rights-holder contact
+                      </a>
+                      <span className="text-white/25">•</span>
+                      <a href="/recover" className="hover:text-white">
+                        Recover purchase (30 mins)
+                      </a>
+                    </div>
+                  </div>
 
-                </div>
+                  {/* right: icons */}
+                  <div className="flex items-center gap-3 md:justify-end">
+                    <a
+                      href="https://instagram.com/singwithpsalmy"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Instagram"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
+                      title="Instagram"
+                    >
+                      <Instagram className="h-4 w-4 text-white/70" />
+                    </a>
 
-                {/* right: subtle social icons */}
-                <div className="flex items-center gap-3">
-                  <a
-                    href="https://instagram.com/singwithpsalmy"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Instagram"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
-                    title="Instagram"
-                  >
-                    <Instagram className="h-4 w-4 text-white/70" />
-                  </a>
+                    <a
+                      href="https://tiktok.com/@singwithpsalmy"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="TikTok"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
+                      title="TikTok"
+                    >
+                      <Music2 className="h-4 w-4 text-white/70" />
+                    </a>
 
-                  <a
-                    href="https://tiktok.com/@singwithpsalmy"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="TikTok"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
-                    title="TikTok"
-                  >
-                    <Music2 className="h-4 w-4 text-white/70" />
-                  </a>
-
-                  <a
-                    href="https://youtube.com/@singwithpsalmy"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="YouTube"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
-                    title="YouTube"
-                  >
-                    <Youtube className="h-4 w-4 text-white/70" />
-                  </a>
+                    <a
+                      href="https://youtube.com/@singwithpsalmy"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="YouTube"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
+                      title="YouTube"
+                    >
+                      <Youtube className="h-4 w-4 text-white/70" />
+                    </a>
+                  </div>
                 </div>
               </div>
             </footer>

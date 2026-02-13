@@ -58,9 +58,7 @@ export default function SiteHeader() {
     const isMember = !!ms?.isMember;
 
     const hasAnyInfo = isMember || !!expires;
-    if (!hasAnyInfo) {
-      return { show: false } as const;
-    }
+    if (!hasAnyInfo) return { show: false } as const;
 
     const expiryLabel = expires ? fmtExpiry(expires) : null;
     const dLeft = expires ? daysUntil(expires) : null;
@@ -83,16 +81,19 @@ export default function SiteHeader() {
   return (
     <header className="border-b border-white/10 bg-black/70 backdrop-blur">
       {/* Top row */}
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-        <a href="/" className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5 sm:py-4">
+        {/* Brand */}
+        <a href="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
           <img
             src="/brand/mark.png"
             alt="SingWithPsalmy"
             className="h-9 w-9 rounded-xl ring-1 ring-white/15 shadow-[0_0_25px_rgba(167,139,250,0.20)] transition hover:shadow-[0_0_33px_rgba(244,114,182,0.25)]"
           />
-          <span className="text-sm font-semibold tracking-wide text-white/90">
-            Sing With Psalmy
-            <div className="text-xs text-white/60">Karaoke practice tracks</div>
+          <span className="min-w-0 text-sm font-semibold tracking-wide text-white/90 sm:text-sm">
+            <span className="block truncate">Sing With Psalmy</span>
+            <span className="hidden text-xs text-white/60 sm:block">
+              Karaoke practice tracks
+            </span>
           </span>
         </a>
 
@@ -129,12 +130,12 @@ export default function SiteHeader() {
 
           <CartIcon />
 
-          {/* Membership button area (no "Manage membership" anymore) */}
+          {/* Membership area (mobile compact, desktop richer) */}
           {view.show && view.isMember ? (
             <div className="flex items-center gap-2">
               <a
                 href="/membership"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+                className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
                 title="View membership"
               >
                 <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-emerald-400 align-middle" />
@@ -147,12 +148,11 @@ export default function SiteHeader() {
               {view.nearExpiry ? (
                 <a
                   href="/membership"
-                  className="rounded-xl bg-amber-500/20 px-4 py-2 text-sm text-amber-200 ring-1 ring-amber-400/20 hover:bg-amber-500/30"
+                  className="rounded-xl bg-amber-500/20 px-3 py-2 text-sm text-amber-200 ring-1 ring-amber-400/20 hover:bg-amber-500/30"
                   title="Renew membership"
                 >
                   <span className="hidden sm:inline">
-                    Renew
-                    {typeof view.dLeft === "number" ? ` (${view.dLeft}d)` : ""}
+                    Renew{typeof view.dLeft === "number" ? ` (${view.dLeft}d)` : ""}
                   </span>
                   <span className="sm:hidden">Renew</span>
                 </a>
@@ -161,9 +161,14 @@ export default function SiteHeader() {
           ) : (
             <a
               href="/membership"
-              className="rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
             >
-              {view.show && view.expired ? "Renew membership" : "Join membership"}
+              <span className="hidden sm:inline">
+                {view.show && view.expired ? "Renew membership" : "Join membership"}
+              </span>
+              <span className="sm:hidden">
+                {view.show && view.expired ? "Renew" : "Join"}
+              </span>
             </a>
           )}
         </div>
@@ -172,13 +177,9 @@ export default function SiteHeader() {
       {/* Mobile dropdown */}
       {menuOpen ? (
         <div className="md:hidden border-t border-white/10 bg-black/80">
-          <div className="mx-auto max-w-6xl px-5 py-3 text-sm text-white/80">
+          <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/browse"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse
               </a>
               <a
@@ -188,18 +189,10 @@ export default function SiteHeader() {
               >
                 Membership
               </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/request"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/request">
                 Request a song
               </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/dmca"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
                 DMCA
               </a>
               <a

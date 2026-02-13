@@ -102,7 +102,12 @@ function matchScore(queryRaw: string, titleRaw: string) {
   const editTokScore = bestTokSum / Math.max(1, qTokens.length);
   const editWholeScore = editSimilarity(q, t);
 
-  const score = Math.max(tokenScore, bgScore, editTokScore * 0.95, editWholeScore * 0.85);
+  const score = Math.max(
+    tokenScore,
+    bgScore,
+    editTokScore * 0.95,
+    editWholeScore * 0.85
+  );
   return Math.min(1, score);
 }
 
@@ -119,11 +124,9 @@ export default function BrowsePage() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // custom dropdown
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement | null>(null);
 
-  // persist view
   useEffect(() => {
     const saved = localStorage.getItem("swp_browse_view");
     if (saved === "grid" || saved === "list") setView(saved);
@@ -133,7 +136,6 @@ export default function BrowsePage() {
     localStorage.setItem("swp_browse_view", view);
   }, [view]);
 
-  // close dropdown on outside click
   useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (!sortRef.current) return;
@@ -158,22 +160,22 @@ export default function BrowsePage() {
     setTracks(out.data ?? []);
   }
 
-  // initial load + read query params from URL
   useEffect(() => {
-  // 1) read URL params first
-  const url = new URL(window.location.href);
-  const initialQ = url.searchParams.get("q") || "";
-  const initialSort = url.searchParams.get("sort");
+    const url = new URL(window.location.href);
+    const initialQ = url.searchParams.get("q") || "";
+    const initialSort = url.searchParams.get("sort");
 
-  if (initialQ) setQ(initialQ);
-  if (initialSort === "name" || initialSort === "date" || initialSort === "downloads") {
-    setSort(initialSort);
-  }
+    if (initialQ) setQ(initialQ);
+    if (
+      initialSort === "name" ||
+      initialSort === "date" ||
+      initialSort === "downloads"
+    ) {
+      setSort(initialSort);
+    }
 
-  // 2) then load tracks
-  load();
-}, []);
-
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
     const query = q.trim();
@@ -183,7 +185,9 @@ export default function BrowsePage() {
       .filter((x) => (query ? x.score >= 0.5 : true));
 
     if (query) {
-      withScores.sort((a, b) => b.score - a.score || a.t.title.localeCompare(b.t.title));
+      withScores.sort(
+        (a, b) => b.score - a.score || a.t.title.localeCompare(b.t.title)
+      );
       return withScores.map((x) => x.t);
     }
 
@@ -192,7 +196,9 @@ export default function BrowsePage() {
     if (sort === "name") {
       list.sort((a, b) => a.title.localeCompare(b.title));
     } else if (sort === "date") {
-      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      list.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     } else {
       list.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
     }
@@ -204,7 +210,7 @@ export default function BrowsePage() {
     <main className="min-h-screen text-white">
       <SiteHeader />
 
-      <section className="mx-auto max-w-6xl px-5 py-10">
+      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-4xl font-semibold tracking-tight">Browse Songs</h1>
@@ -295,7 +301,8 @@ export default function BrowsePage() {
               No songs found.
             </div>
           ) : view === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            // ✅ 2 columns on mobile
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
               {filtered.map((t) => (
                 <a
                   key={t.id}
@@ -324,7 +331,7 @@ export default function BrowsePage() {
                   href={`/track/${t.slug}`}
                   className="flex items-center justify-between gap-4 rounded-3xl bg-white/5 p-4 ring-1 ring-white/10 hover:bg-white/10"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div className="h-12 w-12 overflow-hidden rounded-xl ring-1 ring-white/10">
                       <CoverTile slug={t.slug} className="h-full w-full object-cover" />
                     </div>
@@ -338,7 +345,9 @@ export default function BrowsePage() {
                     <div className="text-sm font-semibold">
                       ₦{Number(t.price_naira).toLocaleString("en-NG")}
                     </div>
-                    <div className="mt-1 text-xs text-white/60">{t.downloads || 0} downloads</div>
+                    <div className="mt-1 text-xs text-white/60">
+                      {t.downloads || 0} downloads
+                    </div>
                   </div>
                 </a>
               ))}
