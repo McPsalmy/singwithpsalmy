@@ -20,8 +20,22 @@ export default function PurchaseButton({ slug, title }: Props) {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsMember(localStorage.getItem("swp_member") === "1");
-  }, []);
+  (async () => {
+    try {
+      const res = await fetch("/api/public/membership/status", { cache: "no-store" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        setIsMember(false);
+        return;
+      }
+      setIsMember(!!out?.isMember);
+    } catch {
+      setIsMember(false);
+    }
+  })();
+}, []);
+
+
 
   function addToCart() {
     const raw = localStorage.getItem("swp_cart");

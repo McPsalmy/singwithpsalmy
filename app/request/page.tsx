@@ -6,6 +6,7 @@ import { supabaseClient } from "../lib/supabaseClient";
 
 export default function RequestPage() {
   const [isMember, setIsMember] = useState(false);
+  const [memberEmail, setMemberEmail] = useState<string>("");
 
   const [email, setEmail] = useState("");
   const [songTitle, setSongTitle] = useState("");
@@ -14,6 +15,7 @@ export default function RequestPage() {
 
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   const canSubmit = useMemo(() => {
     if (!isMember) return false;
@@ -23,7 +25,29 @@ export default function RequestPage() {
   }, [isMember, email, songTitle]);
 
   useEffect(() => {
-    setIsMember(localStorage.getItem("swp_member") === "1");
+    (async () => {
+      try {
+        setChecking(true);
+        const res = await fetch("/api/public/membership/status", { cache: "no-store" });
+        const out = await res.json().catch(() => ({}));
+
+        if (!res.ok || !out?.ok) {
+          console.error(out);
+          setIsMember(false);
+          setMemberEmail("");
+          return;
+        }
+
+        setIsMember(!!out?.isMember);
+        const e = String(out?.email || "");
+        setMemberEmail(e);
+
+        // Prefill email input for members
+        if (out?.isMember && e) setEmail(e);
+      } finally {
+        setChecking(false);
+      }
+    })();
   }, []);
 
   async function submit() {
@@ -50,7 +74,6 @@ export default function RequestPage() {
       }
 
       setSent(true);
-      setEmail("");
       setSongTitle("");
       setArtist("");
       setNotes("");
@@ -70,7 +93,11 @@ export default function RequestPage() {
           Members can request karaoke practice tracks that aren’t in the catalogue yet.
         </p>
 
-        {!isMember ? (
+        {checking ? (
+          <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+            <div className="text-sm text-white/70">Checking membership…</div>
+          </div>
+        ) : !isMember ? (
           <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
             <div className="text-lg font-semibold">Members-only feature</div>
             <p className="mt-2 text-sm text-white/65">
@@ -88,6 +115,12 @@ export default function RequestPage() {
         ) : (
           <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
             <div className="text-sm font-semibold">Request details</div>
+
+            {memberEmail ? (
+              <div className="mt-3 text-xs text-white/55">
+                Member email: <span className="text-white">{memberEmail}</span>
+              </div>
+            ) : null}
 
             <div className="mt-4 grid gap-3">
               <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
@@ -156,38 +189,51 @@ export default function RequestPage() {
               </div>
             )}
 
-            <div className="mt-6 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-              <div className="text-sm font-semibold">How it works</div>
-              <ol className="mt-3 space-y-2 text-sm text-white/70">
-                <li className="flex gap-2">
-                  <span className="text-white/60">1.</span>
-                  Submit the song title (and artist if you know it).
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-white/60">2.</span>
-                  We create the karaoke practice tracks and upload them to the catalogue.
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-white/60">3.</span>
-                  You’ll be able to download the new track versions while your membership is active.
-                </li>
-              </ol>
+{sent && (
+  <div className="mt-4">
+    <div className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15">
+      <span>✅</span>
+      <span>Request submitted</span>
+    </div>
+  </div>
+)}
 
-              <p className="mt-3 text-xs text-white/55">
-                Rights-holders & publishers: if you own or represent a song and would like to
-                discuss promotion, licensing, or any concerns, please include your preferred
-                contact details in the notes (or visit our Rights-holder page). We’ll respond
-                promptly.
-              </p>
+<div className="mt-6 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
+  <div className="text-sm font-semibold">How it works</div>
+  <ol className="mt-3 space-y-2 text-sm text-white/70">
+    <li className="flex gap-2">
+      <span className="text-white/60">1.</span>
+      Submit the song title (and artist if you know it).
+    </li>
+    <li className="flex gap-2">
+      <span className="text-white/60">2.</span>
+      We create the karaoke practice tracks and upload them to the catalogue.
+    </li>
+    <li className="flex gap-2">
+      <span className="text-white/60">3.</span>
+      You’ll be able to download the new track versions while your membership is active.
+    </li>
+  </ol>
 
-              <a
-                href="/rights-holder"
-                className="mt-4 inline-block rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Rights-holder page →
-              </a>
-            </div>
+  <p className="mt-3 text-xs text-white/55">
+    Rights-holders & publishers: if you own or represent a song and would like to
+    discuss promotion, licensing, or any concerns, please include your preferred
+    contact details in the notes (or visit our Rights-holder page). We’ll respond
+    promptly.
+  </p>
+
+  <a
+    href="/rights-holder"
+    className="mt-4 inline-block rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+  >
+    Rights-holder page →
+  </a>
+</div>
+
+
           </div>
+
+
         )}
       </section>
     </main>

@@ -32,6 +32,23 @@ export default function PaystackCallbackPage() {
           return;
         }
 
+        // If this was a MEMBERSHIP payment, set member cookies for the browser
+        if (out?.kind === "membership") {
+          const email = String(out?.email || "").trim();
+          if (email) {
+            document.cookie = `swp_member=1; path=/; max-age=31536000; samesite=lax; secure`;
+document.cookie = `swp_member_email=${email}; path=/; max-age=31536000; samesite=lax; secure`;
+
+          }
+
+          setMsg("Membership activated ✓ Redirecting...");
+          setTimeout(() => {
+            window.location.href = "/membership";
+          }, 800);
+          return;
+        }
+
+
         // Success: store proof for the next step (downloads unlock)
         // We'll keep it simple for now; next step we’ll turn this into a secure server token.
         localStorage.setItem("swp_paid_ref", reference);

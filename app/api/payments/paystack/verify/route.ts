@@ -174,16 +174,18 @@ if (metadata?.kind === "membership") {
   }
 
   // Set member cookie (DB is still the source of truth)
-  const resp = NextResponse.json({
-    ok: true,
-    reference,
-    kind: "membership",
-    plan,
-    months,
-    expires_at: expiresAt.toISOString(),
-    paid_at: data?.paid_at,
-    currency: data?.currency,
-  });
+ const resp = NextResponse.json({
+  ok: true,
+  reference,
+  kind: "membership",
+  email, // ✅ ADD THIS
+  plan,
+  months,
+  expires_at: expiresAt.toISOString(),
+  paid_at: data?.paid_at,
+  currency: data?.currency,
+});
+
 
   resp.cookies.set("swp_member", "1", {
     httpOnly: true,
@@ -192,6 +194,15 @@ if (metadata?.kind === "membership") {
     path: "/",
     maxAge: 60 * 60 * 24 * 400, // up to ~400 days cookie; expiry is enforced by DB
   });
+
+  resp.cookies.set("swp_member_email", email, {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: true,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 400,
+});
+
 
   return resp;
 }
