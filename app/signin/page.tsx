@@ -31,7 +31,6 @@ export default function SignInPage() {
       return;
     }
 
-    // user is signed in; send them somewhere useful
     window.location.href = "/membership";
   }
 
@@ -118,6 +117,15 @@ export default function SignInPage() {
                 placeholder="Your password"
                 required
               />
+
+              <div className="mt-3 text-right">
+                <a
+                  href="/reset-password"
+                  className="text-xs text-white/70 underline hover:text-white"
+                >
+                  Forgot password?
+                </a>
+              </div>
             </>
           ) : (
             <p className="mt-4 text-xs text-white/60">
@@ -140,22 +148,22 @@ export default function SignInPage() {
               {msg}
             </div>
           ) : null}
-                    <div className="mt-5 text-center text-xs text-white/60">
+
+          <div className="mt-5 text-center text-xs text-white/60">
             New here?{" "}
             <a href="/signup" className="text-white underline hover:text-white/90">
               Create an account
             </a>
             .
           </div>
-
         </form>
 
-       <p className="mt-6 text-xs text-center text-white/55">
-  You don't need an account to purchase karaoke videos. All you need is your email address.
-</p>
-<p className="mt-6 text-xs text-center text-white/55">
-  Accounts are mainly for subscribing members.
-</p>
+        <p className="mt-6 text-xs text-center text-white/55">
+          You don't need an account to purchase karaoke videos. All you need is your email address.
+        </p>
+        <p className="mt-2 text-xs text-center text-white/55">
+          Accounts are mainly for subscribing members.
+        </p>
       </section>
     </main>
   );
