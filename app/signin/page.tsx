@@ -150,8 +150,11 @@ export default function SignInPage() {
 
         </form>
 
-       <p className="mt-6 text-xs text-white/55">
-  You can still buy tracks without an account. Accounts are mainly for members.
+       <p className="mt-6 text-xs text-center text-white/55">
+  You don't need an account to purchase karaoke videos. All you need is your email address.
+</p>
+<p className="mt-6 text-xs text-center text-white/55">
+  Accounts are mainly for subscribing members.
 </p>
       </section>
     </main>
