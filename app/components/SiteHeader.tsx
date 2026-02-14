@@ -26,20 +26,16 @@ function daysUntil(expiresAtIso: string) {
 export default function SiteHeader() {
   const [ms, setMs] = useState<MemberStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // 1) Membership status
+  // Membership status (server-side cookie/DB check)
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const res = await fetch("/api/public/membership/status", {
-          cache: "no-store",
-        });
+        const res = await fetch("/api/public/membership/status", { cache: "no-store" });
         const out = (await res.json().catch(() => ({}))) as MemberStatus;
-
         if (cancelled) return;
 
         if (!res.ok || !out?.ok) {
@@ -58,7 +54,7 @@ export default function SiteHeader() {
     };
   }, []);
 
-  // 2) Auth user (Supabase)
+  // Supabase Auth user (for Log in / Log out UI)
   useEffect(() => {
     let cancelled = false;
 
@@ -66,20 +62,14 @@ export default function SiteHeader() {
       try {
         const supabase = supabaseAuthClient();
 
-        // Get current user
         const { data } = await supabase.auth.getUser();
-        if (cancelled) return;
-        setUserEmail(data?.user?.email ?? null);
+        if (!cancelled) setUserEmail(data?.user?.email ?? null);
 
-        // Keep in sync on sign-in/out events
         const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-          if (cancelled) return;
-          setUserEmail(session?.user?.email ?? null);
+          if (!cancelled) setUserEmail(session?.user?.email ?? null);
         });
 
-        return () => {
-          sub?.subscription?.unsubscribe?.();
-        };
+        return () => sub?.subscription?.unsubscribe?.();
       } catch {
         if (!cancelled) setUserEmail(null);
       }
@@ -130,17 +120,17 @@ export default function SiteHeader() {
       {/* Top row */}
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5 sm:py-4">
         {/* Brand */}
-        <a href="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <a href="/" className="flex min-w-0 items-center gap-2 sm:gap-3" aria-label="Home">
           <img
             src="/brand/mark.png"
             alt="SingWithPsalmy"
             className="h-9 w-9 rounded-xl ring-1 ring-white/15 shadow-[0_0_25px_rgba(167,139,250,0.20)] transition hover:shadow-[0_0_33px_rgba(244,114,182,0.25)]"
           />
-          <span className="min-w-0 text-sm font-semibold tracking-wide text-white/90 sm:text-sm">
+
+          {/* Hide brand text on mobile to save space */}
+          <span className="hidden min-w-0 sm:block text-sm font-semibold tracking-wide text-white/90">
             <span className="block truncate">Sing With Psalmy</span>
-            <span className="hidden text-xs text-white/60 sm:block">
-              Karaoke practice tracks
-            </span>
+            <span className="block text-xs text-white/60">Karaoke practice tracks</span>
           </span>
         </a>
 
@@ -177,7 +167,7 @@ export default function SiteHeader() {
 
           <CartIcon />
 
-          {/* Auth buttons */}
+          {/* Auth (desktop shows Log in + Sign up; mobile shows only Log in) */}
           {userEmail ? (
             <button
               onClick={logout}
@@ -187,33 +177,29 @@ export default function SiteHeader() {
               Log out
             </button>
           ) : (
-            
-
             <>
-  <div className="hidden md:flex items-center gap-2">
-    <a
-      href="/signin"
-      className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-    >
-      Sign in
-    </a>
-    <a
-      href="/signup"
-      className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-    >
-      Sign up
-    </a>
-  </div>
+              <div className="hidden md:flex items-center gap-2">
+                <a
+                  href="/signin"
+                  className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+                >
+                  Log in
+                </a>
+                <a
+                  href="/signup"
+                  className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+                >
+                  Sign up
+                </a>
+              </div>
 
-  <a
-    href="/signin"
-    className="md:hidden rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-  >
-    Sign in
-  </a>
-</>
-
-
+              <a
+                href="/signin"
+                className="md:hidden rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Log in
+              </a>
+            </>
           )}
 
           {/* Membership area */}
@@ -252,9 +238,7 @@ export default function SiteHeader() {
               <span className="hidden sm:inline">
                 {view.show && view.expired ? "Renew membership" : "Join membership"}
               </span>
-              <span className="sm:hidden">
-                {view.show && view.expired ? "Renew" : "Join"}
-              </span>
+              <span className="sm:hidden">{view.show && view.expired ? "Renew" : "Join"}</span>
             </a>
           )}
         </div>
@@ -265,42 +249,22 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/browse"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse
               </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/membership"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/membership">
                 Membership
               </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/request"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/request">
                 Request a song
               </a>
 
               {!userEmail ? (
                 <>
-                  <a
-                    onClick={() => setMenuOpen(false)}
-                    className="hover:text-white"
-                    href="/signin"
-                  >
-                    Sign in
+                  <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/signin">
+                    Log in
                   </a>
-                  <a
-                    onClick={() => setMenuOpen(false)}
-                    className="hover:text-white"
-                    href="/signup"
-                  >
+                  <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/signup">
                     Sign up
                   </a>
                 </>
@@ -317,11 +281,7 @@ export default function SiteHeader() {
                 </button>
               )}
 
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/dmca"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
                 DMCA
               </a>
               <a
