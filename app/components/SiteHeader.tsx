@@ -187,12 +187,33 @@ export default function SiteHeader() {
               Log out
             </button>
           ) : (
-            <a
-              href="/signin"
-              className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-            >
-              Sign in
-            </a>
+            
+
+            <>
+  <div className="hidden md:flex items-center gap-2">
+    <a
+      href="/signin"
+      className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+    >
+      Sign in
+    </a>
+    <a
+      href="/signup"
+      className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+    >
+      Sign up
+    </a>
+  </div>
+
+  <a
+    href="/signin"
+    className="md:hidden rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+  >
+    Sign in
+  </a>
+</>
+
+
           )}
 
           {/* Membership area */}
