@@ -1,6 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
 import { useEffect, useMemo, useState } from "react";
 import CartIcon from "./CartIcon";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
