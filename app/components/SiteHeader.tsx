@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import CartIcon from "./CartIcon";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
-
 type MemberStatus = {
   ok: boolean;
   isMember: boolean;
@@ -13,7 +12,6 @@ type MemberStatus = {
   plan?: string | null;
   error?: string;
 };
-const [userEmail, setUserEmail] = useState<string | null>(null);
 
 function fmtExpiry(expiresAtIso: string) {
   const d = new Date(expiresAtIso);
@@ -29,6 +27,9 @@ export default function SiteHeader() {
   const [ms, setMs] = useState<MemberStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // 1) Membership status
   useEffect(() => {
     let cancelled = false;
 
@@ -38,6 +39,7 @@ export default function SiteHeader() {
           cache: "no-store",
         });
         const out = (await res.json().catch(() => ({}))) as MemberStatus;
+
         if (cancelled) return;
 
         if (!res.ok || !out?.ok) {
@@ -51,22 +53,52 @@ export default function SiteHeader() {
       }
     })();
 
-        (async () => {
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 2) Auth user (Supabase)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
       try {
         const supabase = supabaseAuthClient();
+
+        // Get current user
         const { data } = await supabase.auth.getUser();
         if (cancelled) return;
         setUserEmail(data?.user?.email ?? null);
+
+        // Keep in sync on sign-in/out events
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (cancelled) return;
+          setUserEmail(session?.user?.email ?? null);
+        });
+
+        return () => {
+          sub?.subscription?.unsubscribe?.();
+        };
       } catch {
         if (!cancelled) setUserEmail(null);
       }
     })();
 
-
     return () => {
       cancelled = true;
     };
   }, []);
+
+  async function logout() {
+    try {
+      const supabase = supabaseAuthClient();
+      await supabase.auth.signOut();
+    } finally {
+      setUserEmail(null);
+      window.location.href = "/";
+    }
+  }
 
   const view = useMemo(() => {
     const expires = ms?.expires_at || null;
@@ -92,17 +124,6 @@ export default function SiteHeader() {
       dLeft,
     } as const;
   }, [ms]);
-
-  async function logout() {
-  try {
-    const supabase = supabaseAuthClient();
-    await supabase.auth.signOut();
-  } finally {
-    setUserEmail(null);
-    window.location.href = "/";
-  }
-}
-
 
   return (
     <header className="border-b border-white/10 bg-black/70 backdrop-blur">
@@ -156,7 +177,8 @@ export default function SiteHeader() {
 
           <CartIcon />
 
-                    {userEmail ? (
+          {/* Auth buttons */}
+          {userEmail ? (
             <button
               onClick={logout}
               className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
@@ -173,8 +195,7 @@ export default function SiteHeader() {
             </a>
           )}
 
-
-          {/* Membership area (mobile compact, desktop richer) */}
+          {/* Membership area */}
           {view.show && view.isMember ? (
             <div className="flex items-center gap-2">
               <a
@@ -223,7 +244,11 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
-              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
+              <a
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-white"
+                href="/browse"
+              >
                 Browse
               </a>
               <a
@@ -233,10 +258,49 @@ export default function SiteHeader() {
               >
                 Membership
               </a>
-              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/request">
+              <a
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-white"
+                href="/request"
+              >
                 Request a song
               </a>
-              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
+
+              {!userEmail ? (
+                <>
+                  <a
+                    onClick={() => setMenuOpen(false)}
+                    className="hover:text-white"
+                    href="/signin"
+                  >
+                    Sign in
+                  </a>
+                  <a
+                    onClick={() => setMenuOpen(false)}
+                    className="hover:text-white"
+                    href="/signup"
+                  >
+                    Sign up
+                  </a>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    logout();
+                  }}
+                  className="text-left hover:text-white"
+                  title={userEmail}
+                >
+                  Log out
+                </button>
+              )}
+
+              <a
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-white"
+                href="/dmca"
+              >
                 DMCA
               </a>
               <a
