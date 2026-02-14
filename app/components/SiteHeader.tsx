@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import CartIcon from "./CartIcon";
+import { supabaseAuthClient } from "../lib/supabaseAuthClient";
+
 
 type MemberStatus = {
   ok: boolean;
@@ -11,6 +13,7 @@ type MemberStatus = {
   plan?: string | null;
   error?: string;
 };
+const [userEmail, setUserEmail] = useState<string | null>(null);
 
 function fmtExpiry(expiresAtIso: string) {
   const d = new Date(expiresAtIso);
@@ -48,6 +51,18 @@ export default function SiteHeader() {
       }
     })();
 
+        (async () => {
+      try {
+        const supabase = supabaseAuthClient();
+        const { data } = await supabase.auth.getUser();
+        if (cancelled) return;
+        setUserEmail(data?.user?.email ?? null);
+      } catch {
+        if (!cancelled) setUserEmail(null);
+      }
+    })();
+
+
     return () => {
       cancelled = true;
     };
@@ -77,6 +92,17 @@ export default function SiteHeader() {
       dLeft,
     } as const;
   }, [ms]);
+
+  async function logout() {
+  try {
+    const supabase = supabaseAuthClient();
+    await supabase.auth.signOut();
+  } finally {
+    setUserEmail(null);
+    window.location.href = "/";
+  }
+}
+
 
   return (
     <header className="border-b border-white/10 bg-black/70 backdrop-blur">
@@ -129,6 +155,24 @@ export default function SiteHeader() {
           </button>
 
           <CartIcon />
+
+                    {userEmail ? (
+            <button
+              onClick={logout}
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              title={userEmail}
+            >
+              Log out
+            </button>
+          ) : (
+            <a
+              href="/signin"
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Sign in
+            </a>
+          )}
+
 
           {/* Membership area (mobile compact, desktop richer) */}
           {view.show && view.isMember ? (
