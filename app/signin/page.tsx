@@ -140,11 +140,19 @@ export default function SignInPage() {
               {msg}
             </div>
           ) : null}
+                    <div className="mt-5 text-center text-xs text-white/60">
+            New here?{" "}
+            <a href="/signup" className="text-white underline hover:text-white/90">
+              Create an account
+            </a>
+            .
+          </div>
+
         </form>
 
-        <p className="mt-6 text-xs text-white/55">
-          Don’t have an account yet? You can still buy tracks without signing in.
-        </p>
+       <p className="mt-6 text-xs text-white/55">
+  You can still buy tracks without an account. Accounts are mainly for members.
+</p>
       </section>
     </main>
   );

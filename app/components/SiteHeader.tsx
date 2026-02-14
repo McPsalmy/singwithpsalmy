@@ -178,20 +178,15 @@ export default function SiteHeader() {
             </button>
           ) : (
             <>
-              <div className="hidden md:flex items-center gap-2">
-                <a
-                  href="/signin"
-                  className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                >
-                  Log in
-                </a>
-                <a
-                  href="/signup"
-                  className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                >
-                  Sign up
-                </a>
-              </div>
+              <div className="hidden md:flex items-center">
+  <a
+    href="/signin"
+    className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+  >
+    Log in
+  </a>
+</div>
+
 
               <a
                 href="/signin"
