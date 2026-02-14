@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import SiteHeader from "../../components/SiteHeader";
 import CoverTile from "../../components/CoverTile";
+import { supabaseAuthClient } from "../../lib/supabaseAuthClient";
+
 
 type CartItem = {
   slug: string;
@@ -66,6 +68,20 @@ export default function CartCheckoutPage() {
   }
 }
 
+useEffect(() => {
+  async function loadSignedInEmail() {
+    try {
+      const supabase = supabaseAuthClient();
+      const { data } = await supabase.auth.getUser();
+      const userEmail = data?.user?.email || "";
+      if (userEmail) setEmail(userEmail);
+    } catch {
+      // ignore — walk-in users can type email manually
+    }
+  }
+
+  loadSignedInEmail();
+}, []);
 
   return (
     <main className="min-h-screen text-white">
