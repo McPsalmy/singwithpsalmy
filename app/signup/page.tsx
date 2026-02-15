@@ -4,44 +4,43 @@ import { useMemo, useState } from "react";
 import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
-export default function SignInPage() {
+export default function SignUpPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
-  const [mode, setMode] = useState<"password" | "magic">("password");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+
   const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  async function signInPassword(e: React.FormEvent) {
+  async function signUp(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
-    setBusy(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    setBusy(false);
-
-    if (error) {
-      setMsg(error.message);
+    const eaddr = email.trim().toLowerCase();
+    if (!eaddr || !eaddr.includes("@")) {
+      setMsg("Please enter a valid email.");
       return;
     }
 
-    window.location.href = "/membership";
-  }
+    if (password.length < 6) {
+      setMsg("Password must be at least 6 characters.");
+      return;
+    }
 
-  async function sendMagicLink(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
+    if (password !== confirm) {
+      setMsg("Passwords do not match.");
+      return;
+    }
+
     setBusy(true);
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
+    const { error } = await supabase.auth.signUp({
+      email: eaddr,
+      password,
       options: {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/membership`,
       },
@@ -54,7 +53,7 @@ export default function SignInPage() {
       return;
     }
 
-    setMsg("✅ Check your email for the sign-in link.");
+    setMsg("✅ Account created. Check your email to confirm, then sign in.");
   }
 
   return (
@@ -62,39 +61,13 @@ export default function SignInPage() {
       <SiteHeader />
 
       <section className="mx-auto max-w-md px-5 py-14">
-        <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Create account</h1>
         <p className="mt-2 text-sm text-white/70">
-          Sign in to access membership features and manage your account.
+          Create an account to manage membership and access premium features.
         </p>
 
-        <div className="mt-6 flex gap-2">
-          <button
-            onClick={() => setMode("password")}
-            className={[
-              "rounded-xl px-4 py-2 text-sm ring-1",
-              mode === "password"
-                ? "bg-white text-black ring-white"
-                : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
-            ].join(" ")}
-          >
-            Email + Password
-          </button>
-
-          <button
-            onClick={() => setMode("magic")}
-            className={[
-              "rounded-xl px-4 py-2 text-sm ring-1",
-              mode === "magic"
-                ? "bg-white text-black ring-white"
-                : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
-            ].join(" ")}
-          >
-            Magic link
-          </button>
-        </div>
-
         <form
-          onSubmit={mode === "password" ? signInPassword : sendMagicLink}
+          onSubmit={signUp}
           className="mt-6 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10"
         >
           <label className="block text-sm text-white/80">Email</label>
@@ -107,44 +80,45 @@ export default function SignInPage() {
             required
           />
 
-          {mode === "password" ? (
-            <>
-              <label className="mt-4 block text-sm text-white/80">Password</label>
+          <label className="mt-4 block text-sm text-white/80">Password</label>
+          <div className="relative mt-2">
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type={showPass ? "text" : "password"}
+              className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+              placeholder="Create a password"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/15 hover:bg-white/15"
+              aria-label={showPass ? "Hide password" : "Show password"}
+            >
+              {showPass ? "Hide" : "Show"}
+            </button>
+          </div>
 
-              <div className="relative mt-2">
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type={showPass ? "text" : "password"}
-                  className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
-                  placeholder="Your password"
-                  required
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setShowPass((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/15 hover:bg-white/15"
-                  aria-label={showPass ? "Hide password" : "Show password"}
-                >
-                  {showPass ? "Hide" : "Show"}
-                </button>
-              </div>
-
-              <div className="mt-3 text-right">
-                <a
-                  href="/reset-password"
-                  className="text-xs text-white/70 underline hover:text-white"
-                >
-                  Forgot password?
-                </a>
-              </div>
-            </>
-          ) : (
-            <p className="mt-4 text-xs text-white/60">
-              We’ll email you a secure sign-in link.
-            </p>
-          )}
+          <label className="mt-4 block text-sm text-white/80">Confirm password</label>
+          <div className="relative mt-2">
+            <input
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              type={showConfirm ? "text" : "password"}
+              className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+              placeholder="Re-enter password"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/15 hover:bg-white/15"
+              aria-label={showConfirm ? "Hide password" : "Show password"}
+            >
+              {showConfirm ? "Hide" : "Show"}
+            </button>
+          </div>
 
           <button
             disabled={busy}
@@ -153,7 +127,7 @@ export default function SignInPage() {
               busy ? "bg-white/10 text-white/70" : "bg-white text-black hover:bg-white/90",
             ].join(" ")}
           >
-            {busy ? "Working..." : mode === "password" ? "Sign in" : "Send link"}
+            {busy ? "Working..." : "Create account"}
           </button>
 
           {msg ? (
@@ -163,19 +137,16 @@ export default function SignInPage() {
           ) : null}
 
           <div className="mt-5 text-center text-xs text-white/60">
-            New here?{" "}
-            <a href="/signup" className="text-white underline hover:text-white/90">
-              Create an account
+            Already have an account?{" "}
+            <a href="/signin" className="text-white underline hover:text-white/90">
+              Log in
             </a>
             .
           </div>
         </form>
 
         <p className="mt-6 text-xs text-center text-white/55">
-          You don't need an account to purchase karaoke videos. All you need is your email address.
-        </p>
-        <p className="mt-2 text-xs text-center text-white/55">
-          Accounts are mainly for subscribing members.
+          You don’t need an account to purchase karaoke videos — accounts are mainly for members.
         </p>
       </section>
     </main>
