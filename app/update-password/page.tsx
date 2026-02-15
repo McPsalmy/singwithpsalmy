@@ -6,7 +6,13 @@ import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 export default function UpdatePasswordPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
+
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState<boolean>(false);
@@ -24,13 +30,21 @@ export default function UpdatePasswordPage() {
     e.preventDefault();
     setMsg(null);
 
-    if (password.trim().length < 6) {
+    const p = password.trim();
+    const c = confirm.trim();
+
+    if (p.length < 6) {
       setMsg("Password must be at least 6 characters.");
       return;
     }
 
+    if (p !== c) {
+      setMsg("Passwords do not match.");
+      return;
+    }
+
     setBusy(true);
-    const { error } = await supabase.auth.updateUser({ password: password.trim() });
+    const { error } = await supabase.auth.updateUser({ password: p });
     setBusy(false);
 
     if (error) {
@@ -69,14 +83,44 @@ export default function UpdatePasswordPage() {
             className="mt-6 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10"
           >
             <label className="block text-sm text-white/80">New password</label>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              className="mt-2 w-full rounded-xl bg-black/40 px-4 py-3 text-sm text-white ring-1 ring-white/15 outline-none"
-              placeholder="New password"
-              required
-            />
+            <div className="relative mt-2">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type={showPass ? "text" : "password"}
+                className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+                placeholder="New password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/15 hover:bg-white/15"
+                aria-label={showPass ? "Hide password" : "Show password"}
+              >
+                {showPass ? "Hide" : "Show"}
+              </button>
+            </div>
+
+            <label className="mt-4 block text-sm text-white/80">Confirm new password</label>
+            <div className="relative mt-2">
+              <input
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                type={showConfirm ? "text" : "password"}
+                className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+                placeholder="Re-enter new password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/15 hover:bg-white/15"
+                aria-label={showConfirm ? "Hide password" : "Show password"}
+              >
+                {showConfirm ? "Hide" : "Show"}
+              </button>
+            </div>
 
             <button
               disabled={busy}
