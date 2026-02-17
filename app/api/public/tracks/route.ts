@@ -5,7 +5,7 @@ export const fetchCache = "force-no-store";
 import { NextResponse } from "next/server";
 import { supabaseClient } from "../../../lib/supabaseClient";
 
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = supabaseClient();
 
   const { data, error } = await supabase
@@ -18,27 +18,22 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-    const debug = new URL("https://x" + (process.env.VERCEL_URL ? "" : "")).toString(); // ignore, just keeps TS calm
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  let supabaseHost = "";
+  try {
+    supabaseHost = new URL(url).host;
+  } catch {}
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const host = (() => {
-  try { return new URL(url).host; } catch { return ""; }
-})();
+  const showDebug = new URL(req.url).searchParams.get("debug") === "1";
 
-const showDebug = new URL((globalThis as any).location?.href || "https://dummy").searchParams?.get?.("debug") === "1";
-// (Above line may not work server-side reliably; we’ll use req in next step if needed.)
+  const res = NextResponse.json({
+    ok: true,
+    data: data ?? [],
+    ...(showDebug ? { debug: { supabaseHost } } : {}),
+  });
 
-const res = NextResponse.json({
-  ok: true,
-  data: data ?? [],
-  debug: undefined,
-});
-
-res.headers.set("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate");
-res.headers.set("Pragma", "no-cache");
-res.headers.set("Expires", "0");
-
-return res;
-
-
+  res.headers.set("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
 }
