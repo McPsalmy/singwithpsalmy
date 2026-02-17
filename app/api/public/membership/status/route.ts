@@ -20,8 +20,9 @@ export async function GET() {
       );
     }
 
-    // We'll build the response at the end so we can safely set/clear cookies.
-    const res = NextResponse.json({ ok: true });
+    // Collect any cookie changes Supabase Auth wants to make (session refresh, etc.)
+    const pendingCookies: Array<{ name: string; value: string; options: any }> = [];
+    const pendingRemovals: Array<{ name: string; options: any }> = [];
 
     // 1) Try Supabase Auth session first (logged-in users)
     let email = "";
@@ -32,10 +33,10 @@ export async function GET() {
             return cookieStore.get(name)?.value;
           },
           set(name, value, options) {
-            res.cookies.set({ name, value, ...options });
+            pendingCookies.push({ name, value, options });
           },
           remove(name, options) {
-            res.cookies.set({ name, value: "", ...options, maxAge: 0 });
+            pendingRemovals.push({ name, options });
           },
         },
       });
@@ -60,7 +61,17 @@ export async function GET() {
 
     // If we still don't have an email, user is not logged in / not a member
     if (!email) {
-      return NextResponse.json({ ok: true, isMember: false });
+      const noMemberRes = NextResponse.json({ ok: true, isMember: false });
+
+      // Apply any cookie updates Supabase Auth requested
+      for (const c of pendingCookies) {
+        noMemberRes.cookies.set({ name: c.name, value: c.value, ...c.options });
+      }
+      for (const r of pendingRemovals) {
+        noMemberRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
+      }
+
+      return noMemberRes;
     }
 
     // Service-role client for DB membership lookup
@@ -83,7 +94,6 @@ export async function GET() {
     const expiresAtMs = row?.expires_at ? new Date(row.expires_at).getTime() : 0;
     const isActive = row?.status === "active" && expiresAtMs > Date.now();
 
-    // Build final response payload
     const payload = {
       ok: true,
       isMember: isActive,
@@ -92,11 +102,18 @@ export async function GET() {
       plan: row?.plan ?? null,
     };
 
-    // Return payload and keep legacy cookies in sync
     const finalRes = NextResponse.json(payload);
 
+    // Apply any cookie updates Supabase Auth requested
+    for (const c of pendingCookies) {
+      finalRes.cookies.set({ name: c.name, value: c.value, ...c.options });
+    }
+    for (const r of pendingRemovals) {
+      finalRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
+    }
+
+    // Keep legacy cookies in sync for compatibility with existing member flow
     if (isActive) {
-      // Set cookies for compatibility with existing member flow
       finalRes.cookies.set("swp_member", "1", {
         path: "/",
         httpOnly: true,
@@ -112,7 +129,6 @@ export async function GET() {
         maxAge: 60 * 60 * 24 * 30,
       });
     } else {
-      // Not active -> clear member cookies
       finalRes.cookies.set("swp_member", "", { path: "/", maxAge: 0 });
       finalRes.cookies.set("swp_member_email", "", { path: "/", maxAge: 0 });
     }
