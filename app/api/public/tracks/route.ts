@@ -15,5 +15,10 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, data: data ?? [] });
+    const res = NextResponse.json({ ok: true, data: data ?? [] });
+  res.headers.set("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+
 }
