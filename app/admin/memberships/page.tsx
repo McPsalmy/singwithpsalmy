@@ -56,7 +56,10 @@ export default function AdminMembershipsPage() {
     setLoadErr(null);
 
     try {
-      const res = await fetch("/api/admin/memberships/list", { cache: "no-store" });
+      const res = await fetch(`/api/admin/memberships/list?t=${Date.now()}`, {
+  cache: "no-store",
+});
+
       const out = (await res.json().catch(() => ({}))) as ListResp;
 
       setLoading(false);
