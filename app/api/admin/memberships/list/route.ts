@@ -10,7 +10,7 @@ export async function GET() {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { ok: false, error: "Missing Supabase env vars" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -18,7 +18,6 @@ export async function GET() {
       auth: { persistSession: false },
     });
 
-    // memberships is "one row per email" current state
     const { data, error } = await supabase
       .from("memberships")
       .select("email,plan,status,started_at,expires_at")
@@ -26,7 +25,10 @@ export async function GET() {
       .limit(1000);
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500, headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     const now = Date.now();
@@ -40,15 +42,18 @@ export async function GET() {
       else expired += 1;
     }
 
-    return NextResponse.json({
-      ok: true,
-      counts: { active, expired, total: (data ?? []).length },
-      data: data ?? [],
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        counts: { active, expired, total: (data ?? []).length },
+        data: data ?? [],
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

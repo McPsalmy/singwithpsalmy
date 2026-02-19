@@ -11,6 +11,8 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -68,7 +70,11 @@ export default function SignInPage() {
 
         <div className="mt-6 flex gap-2">
           <button
-            onClick={() => setMode("password")}
+            type="button"
+            onClick={() => {
+              setMode("password");
+              setMsg(null);
+            }}
             className={[
               "rounded-xl px-4 py-2 text-sm ring-1",
               mode === "password"
@@ -80,7 +86,12 @@ export default function SignInPage() {
           </button>
 
           <button
-            onClick={() => setMode("magic")}
+            type="button"
+            onClick={() => {
+              setMode("magic");
+              setMsg(null);
+              setShowPassword(false);
+            }}
             className={[
               "rounded-xl px-4 py-2 text-sm ring-1",
               mode === "magic"
@@ -109,14 +120,26 @@ export default function SignInPage() {
           {mode === "password" ? (
             <>
               <label className="mt-4 block text-sm text-white/80">Password</label>
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                className="mt-2 w-full rounded-xl bg-black/40 px-4 py-3 text-sm text-white ring-1 ring-white/15 outline-none"
-                placeholder="Your password"
-                required
-              />
+
+              <div className="mt-2 relative">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+                  placeholder="Your password"
+                  required
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/15 hover:bg-white/15"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
 
               <div className="mt-3 text-right">
                 <a
