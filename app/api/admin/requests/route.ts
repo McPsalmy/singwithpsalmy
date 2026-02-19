@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabaseAdmin";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const { data, error } = await supabaseAdmin()
@@ -9,15 +11,20 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: 500, headers: { "Cache-Control": "no-store" } }
+      );
     }
 
-    return NextResponse.json({ ok: true, data: data ?? [] });
+    return NextResponse.json(
+      { ok: true, data: data ?? [] },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (e: any) {
-    // This catches cases where supabaseAdmin() or something else throws
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown server error" },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }
