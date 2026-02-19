@@ -56,10 +56,10 @@ export default function AdminMembershipsPage() {
     setLoadErr(null);
 
     try {
+      // cache-bust so admin monitoring always reflects latest DB state
       const res = await fetch(`/api/admin/memberships/list?t=${Date.now()}`, {
-  cache: "no-store",
-});
-
+        cache: "no-store",
+      });
       const out = (await res.json().catch(() => ({}))) as ListResp;
 
       setLoading(false);
@@ -135,12 +135,12 @@ export default function AdminMembershipsPage() {
         <SiteHeader />
 
         <section className="mx-auto max-w-5xl px-5 py-12">
-            <a
-  href="/psalmy"
-  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1 text-xs ring-1 ring-white/15 hover:bg-white/15"
->
-  ← Back to dashboard
-</a>
+          <a
+            href="/psalmy"
+            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1 text-xs ring-1 ring-white/15 hover:bg-white/15"
+          >
+            ← Back to dashboard
+          </a>
 
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -193,9 +193,7 @@ export default function AdminMembershipsPage() {
                 onClick={submitRefund}
                 className={[
                   "rounded-xl px-4 py-3 text-sm font-semibold",
-                  busyRefund
-                    ? "bg-white/10 opacity-60"
-                    : "bg-red-500/20 hover:bg-red-500/30",
+                  busyRefund ? "bg-white/10 opacity-60" : "bg-red-500/20 hover:bg-red-500/30",
                 ].join(" ")}
               >
                 {busyRefund ? "Working..." : "Mark refunded"}
