@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getClientIp, noStoreJson, rateLimit } from "../../../../lib/security";
 
@@ -27,18 +26,16 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const reference = String(url.searchParams.get("reference") || "").trim();
-
     if (!reference) {
       return noStoreJson({ ok: false, error: "Missing reference" }, { status: 400 });
     }
 
-    // Rate limit verify (prevents bots hammering Paystack verify + your DB)
+    // Rate limit verify
     const ip = getClientIp(req);
     const rl = rateLimit({ key: `pay_verify:${ip}`, limit: 30, windowMs: 5 * 60 * 1000 });
     if (!rl.ok) {
       return noStoreJson({ ok: false, error: "Too many attempts. Please try again shortly." }, { status: 429 });
     }
-
     const rl2 = rateLimit({ key: `pay_verify_ref:${ip}:${reference}`, limit: 10, windowMs: 10 * 60 * 1000 });
     if (!rl2.ok) {
       return noStoreJson({ ok: false, error: "Too many attempts for this reference. Try again later." }, { status: 429 });
@@ -48,12 +45,10 @@ export async function GET(req: Request) {
       auth: { persistSession: false },
     });
 
+    // Verify on Paystack
     const res = await fetch(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      {
-        method: "GET",
-        headers: { Authorization: `Bearer ${secret}` },
-      }
+      { method: "GET", headers: { Authorization: `Bearer ${secret}` } }
     );
 
     const out = await res.json().catch(() => null);
@@ -76,13 +71,13 @@ export async function GET(req: Request) {
 
     // 30-minute recovery window
     const MAX_MINUTES = 30;
-    const paidAt = data?.paid_at ? new Date(data.paid_at).getTime() : 0;
+    const paidAtMs = data?.paid_at ? new Date(data.paid_at).getTime() : 0;
 
-    if (!paidAt) {
+    if (!paidAtMs) {
       return noStoreJson({ ok: false, error: "Missing paid_at timestamp" }, { status: 401 });
     }
 
-    if (Date.now() - paidAt > MAX_MINUTES * 60 * 1000) {
+    if (Date.now() - paidAtMs > MAX_MINUTES * 60 * 1000) {
       return noStoreJson(
         { ok: false, error: `Recovery window expired (${MAX_MINUTES} minutes).` },
         { status: 403 }
@@ -98,14 +93,14 @@ export async function GET(req: Request) {
       metadata?.email ||
       null;
 
-    // Persist order (idempotent by paystack_reference unique)
+    // Persist order (idempotent)
     const { error: orderErr } = await supabase
       .from("orders")
       .upsert(
         {
           paystack_reference: reference,
           email,
-          amount: Number(data?.amount || 0),
+          amount: Number(data?.amount || 0), // kobo
           currency: String(data?.currency || "NGN"),
           items,
           status: "paid",
@@ -121,7 +116,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // If this was a MEMBERSHIP payment, create/extend membership
+    // MEMBERSHIP FLOW (fix double-credit)
     if (metadata?.kind === "membership") {
       const m = metadata?.membership || {};
       const plan = String(m?.plan || "").trim().toLowerCase();
@@ -134,44 +129,10 @@ export async function GET(req: Request) {
         return noStoreJson({ ok: false, error: "Invalid membership metadata" }, { status: 400 });
       }
 
-      const paidAtDate = new Date(data.paid_at);
-
-      const { data: existing } = await supabase
-        .from("memberships")
-        .select("expires_at,status")
-        .eq("email", email)
-        .in("status", ["active"])
-        .order("expires_at", { ascending: false })
-        .limit(1);
-
-      const currentExpiry = existing?.[0]?.expires_at ? new Date(existing[0].expires_at) : null;
-
-      const base =
-        currentExpiry && currentExpiry.getTime() > Date.now()
-          ? currentExpiry
-          : paidAtDate;
-
-      const expiresAt = addMonths(base, months);
-
-      const { error: memErr } = await supabase
-        .from("memberships")
-        .upsert(
-          {
-            email,
-            plan,
-            months,
-            status: "active",
-            paystack_reference: reference,
-            started_at: paidAtDate.toISOString(),
-            expires_at: expiresAt.toISOString(),
-          },
-          { onConflict: "email" }
-        );
-
-      // Record membership payment in ledger (idempotent by reference)
       const amountKobo = Number(data?.amount || 0);
       const amountNaira = Math.round(amountKobo / 100);
 
+      // 1) Insert into ledger FIRST (idempotent gate)
       const { error: mpErr } = await supabase
         .from("membership_payments")
         .insert({
@@ -196,7 +157,79 @@ export async function GET(req: Request) {
             { status: 500 }
           );
         }
+
+        // Duplicate reference => do NOT extend again
+        // Return current membership state (best effort)
+        const { data: cur } = await supabase
+          .from("memberships")
+          .select("plan,status,expires_at")
+          .eq("email", email)
+          .maybeSingle();
+
+        const resp = noStoreJson({
+          ok: true,
+          reference,
+          kind: "membership",
+          email,
+          plan: cur?.plan ?? plan,
+          months,
+          expires_at: cur?.expires_at ?? null,
+          paid_at: data?.paid_at,
+          currency: data?.currency,
+          duplicate: true,
+        });
+
+        resp.cookies.set("swp_member", "1", {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: true,
+          path: "/",
+          maxAge: 60 * 60 * 24 * 400,
+        });
+        resp.cookies.set("swp_member_email", String(email || ""), {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: true,
+          path: "/",
+          maxAge: 60 * 60 * 24 * 400,
+        });
+
+        return resp;
       }
+
+      // 2) Only now extend membership (safe)
+      const paidAtDate = new Date(data.paid_at);
+
+      const { data: existing } = await supabase
+        .from("memberships")
+        .select("expires_at,status")
+        .eq("email", email)
+        .in("status", ["active"])
+        .order("expires_at", { ascending: false })
+        .limit(1);
+
+      const currentExpiry =
+        existing?.[0]?.expires_at ? new Date(existing[0].expires_at) : null;
+
+      const base =
+        currentExpiry && currentExpiry.getTime() > Date.now()
+          ? currentExpiry
+          : paidAtDate;
+
+      const expiresAt = addMonths(base, months);
+
+      const { error: memErr } = await supabase
+        .from("memberships")
+        .upsert(
+          {
+            email,
+            plan,
+            status: "active",
+            started_at: paidAtDate.toISOString(),
+            expires_at: expiresAt.toISOString(),
+          },
+          { onConflict: "email" }
+        );
 
       if (memErr) {
         return noStoreJson(
@@ -217,7 +250,6 @@ export async function GET(req: Request) {
         currency: data?.currency,
       });
 
-      // Keep cookies as you currently do (DB still source of truth)
       resp.cookies.set("swp_member", "1", {
         httpOnly: true,
         sameSite: "lax",
@@ -237,6 +269,7 @@ export async function GET(req: Request) {
       return resp;
     }
 
+    // Non-membership purchase
     return noStoreJson({
       ok: true,
       reference,
