@@ -15,7 +15,7 @@ type MemberStatus = {
 
 function fmtExpiry(expiresAtIso: string) {
   const d = new Date(expiresAtIso);
-  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" }); // "Jan 2026"
+  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
 function daysUntil(expiresAtIso: string) {
@@ -27,32 +27,6 @@ export default function SiteHeader() {
   const [ms, setMs] = useState<MemberStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  // Membership status (server-side cookie/DB check)
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await fetch("/api/public/membership/status", { cache: "no-store" });
-        const out = (await res.json().catch(() => ({}))) as MemberStatus;
-        if (cancelled) return;
-
-        if (!res.ok || !out?.ok) {
-          setMs(null);
-          return;
-        }
-
-        setMs(out);
-      } catch {
-        if (!cancelled) setMs(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Supabase Auth user (for Log in / Log out UI)
   useEffect(() => {
@@ -80,19 +54,78 @@ export default function SiteHeader() {
     };
   }, []);
 
+  // Membership status:
+  // - Uses Bearer token when logged-in (authoritative)
+  // - Falls back to cookie/legacy only when NOT logged-in
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const supabase = supabaseAuthClient();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token || "";
+
+        const res = await fetch("/api/public/membership/status", {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        const out = (await res.json().catch(() => ({}))) as MemberStatus;
+        if (cancelled) return;
+
+        if (!res.ok || !out?.ok) {
+          setMs(null);
+          return;
+        }
+
+        setMs(out);
+      } catch {
+        if (!cancelled) setMs(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userEmail]); // refresh membership view when auth changes
+
   async function logout() {
     try {
       const supabase = supabaseAuthClient();
       await supabase.auth.signOut();
     } finally {
+      // Clear legacy cookies so "member badge" can't stick when logged out
+      try {
+        await fetch("/api/public/auth/logout", { method: "POST" });
+      } catch {
+        // ignore
+      }
+
       setUserEmail(null);
+      setMs(null);
       window.location.href = "/";
     }
   }
 
+  // Only show "member badge" when the authenticated user matches membership email
   const view = useMemo(() => {
     const expires = ms?.expires_at || null;
     const isMember = !!ms?.isMember;
+    const msEmail = (ms?.email || "").trim().toLowerCase();
+    const uEmail = (userEmail || "").trim().toLowerCase();
+
+    const emailMatches = !!uEmail && !!msEmail && uEmail === msEmail;
+
+    // If logged out, never show member badge based on leftover cookies
+    if (!uEmail) {
+      return { show: false } as const;
+    }
+
+    // If logged in but membership email doesn't match, hide membership badge to avoid confusion
+    if (!emailMatches) {
+      return { show: false } as const;
+    }
 
     const hasAnyInfo = isMember || !!expires;
     if (!hasAnyInfo) return { show: false } as const;
@@ -100,9 +133,7 @@ export default function SiteHeader() {
     const expiryLabel = expires ? fmtExpiry(expires) : null;
     const dLeft = expires ? daysUntil(expires) : null;
 
-    const nearExpiry =
-      isMember && typeof dLeft === "number" && dLeft >= 1 && dLeft <= 7;
-
+    const nearExpiry = isMember && typeof dLeft === "number" && dLeft >= 1 && dLeft <= 7;
     const expired = !isMember && !!expires;
 
     return {
@@ -113,11 +144,10 @@ export default function SiteHeader() {
       expiryLabel,
       dLeft,
     } as const;
-  }, [ms]);
+  }, [ms, userEmail]);
 
   return (
     <header className="border-b border-white/10 bg-black/70 backdrop-blur">
-      {/* Top row */}
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-5 sm:py-4">
         {/* Brand */}
         <a href="/" className="flex min-w-0 items-center gap-2 sm:gap-3" aria-label="Home">
@@ -126,8 +156,6 @@ export default function SiteHeader() {
             alt="SingWithPsalmy"
             className="h-9 w-9 rounded-xl ring-1 ring-white/15 shadow-[0_0_25px_rgba(167,139,250,0.20)] transition hover:shadow-[0_0_33px_rgba(244,114,182,0.25)]"
           />
-
-          {/* Hide brand text on mobile to save space */}
           <span className="hidden min-w-0 sm:block text-sm font-semibold tracking-wide text-white/90">
             <span className="block truncate">Sing With Psalmy</span>
             <span className="block text-xs text-white/60">Karaoke practice tracks</span>
@@ -145,6 +173,14 @@ export default function SiteHeader() {
           <a className="hover:text-white" href="/request">
             Request a song
           </a>
+
+          {/* Show Dashboard only when logged in */}
+          {userEmail ? (
+            <a className="hover:text-white" href="/dashboard">
+              Dashboard
+            </a>
+          ) : null}
+
           <a className="hover:text-white" href="/dmca">
             DMCA
           </a>
@@ -167,7 +203,7 @@ export default function SiteHeader() {
 
           <CartIcon />
 
-          {/* Auth (desktop shows Log in + Sign up; mobile shows only Log in) */}
+          {/* Auth */}
           {userEmail ? (
             <button
               onClick={logout}
@@ -179,14 +215,13 @@ export default function SiteHeader() {
           ) : (
             <>
               <div className="hidden md:flex items-center">
-  <a
-    href="/signin"
-    className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-  >
-    Log in
-  </a>
-</div>
-
+                <a
+                  href="/signin"
+                  className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+                >
+                  Log in
+                </a>
+              </div>
 
               <a
                 href="/signin"
@@ -247,12 +282,31 @@ export default function SiteHeader() {
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse
               </a>
-              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/membership">
+              <a
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-white"
+                href="/membership"
+              >
                 Membership
               </a>
-              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/request">
+              <a
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-white"
+                href="/request"
+              >
                 Request a song
               </a>
+
+              {/* Dashboard visible on mobile too, only when logged in */}
+              {userEmail ? (
+                <a
+                  onClick={() => setMenuOpen(false)}
+                  className="hover:text-white"
+                  href="/dashboard"
+                >
+                  Dashboard
+                </a>
+              ) : null}
 
               {!userEmail ? (
                 <>
