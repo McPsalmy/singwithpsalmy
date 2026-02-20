@@ -224,7 +224,7 @@ export default function MembershipPage() {
 
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">Membership</h1>
 
-          <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-white/70">
+          <p className="mx-auto mt-1 max-w-xl text-base leading-relaxed text-white/70">
             Members get access to the full song catalog while their membership is active.
           </p>
 
@@ -241,21 +241,21 @@ export default function MembershipPage() {
               <div className="text-sm font-semibold">{banner.title}</div>
               <div className="mt-1 text-sm text-white/70">{banner.body}</div>
               {ms?.email ? (
-                <div className="mt-2 text-xs text-white/55">
+                <div className="mt-1 text-xs text-white/55">
                   Email: <span className="text-white">{ms.email}</span>
                 </div>
               ) : null}
 
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <div className="mt-1 flex flex-wrap justify-center gap-2">
                 <a
                   href="/account"
-                  className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                  className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
                 >
                   Go to account
                 </a>
                 <a
                   href="/browse"
-                  className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                  className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
                 >
                   Browse songs
                 </a>
@@ -264,22 +264,22 @@ export default function MembershipPage() {
           ) : null}
 
           {/* Single-track purchase note */}
-          <div className="mt-6 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+          <div className="mt-2 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
             <div className="text-sm font-semibold">Prefer single-track purchase?</div>
             <p className="mt-1 text-sm text-white/70">
               Buy any version of a track for a flat{" "}
               <span className="font-semibold text-white">₦700</span>.
             </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <div className="mt-1 flex flex-wrap justify-center gap-2">
               <a
                 href="/browse"
-                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
               >
                 Browse songs
               </a>
               <a
                 href="/cart"
-                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
               >
                 View cart
               </a>
@@ -372,31 +372,25 @@ export default function MembershipPage() {
         </div>
 
         {/* Member benefit block */}
-        <div className="mt-10 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 text-center">
+        <div className="mt-4 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 text-center">
           <div className="mx-auto max-w-3xl">
             <div className="text-xs text-white/60">Member benefit</div>
             <h2 className="mt-1 text-xl font-semibold tracking-tight">Request songs not in the catalogue</h2>
-            <p className="mx-auto mt-2 max-w-2xl text-sm text-white/70">
-              Active members can request karaoke practice tracks you want us to add next. We’ll create and upload them
-              for you to download.
+            <p className="mx-auto mt-1 max-w-2xl text-sm text-white/70">
+              Active members can request karaoke practice tracks. We’ll create and upload them
+              for you.
             </p>
 
-            <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs text-white/60">
-              <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">Members-only</span>
-              <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">Priority uploads</span>
-              <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">Grows the catalogue</span>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <div className="mt-2 flex flex-wrap justify-center gap-3">
               <a
                 href="/request"
-                className="rounded-2xl bg-white/10 px-5 py-3 text-sm text-center font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                className="rounded-2xl bg-white/10 px-3 py-2 text-sm text-center font-semibold ring-1 ring-white/15 hover:bg-white/15"
               >
                 Request a song
               </a>
               <a
                 href="/browse"
-                className="rounded-2xl bg-white/10 px-5 py-3 text-sm text-center font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                className="rounded-2xl bg-white/10 px-3 py-2 text-sm text-center font-semibold ring-1 ring-white/15 hover:bg-white/15"
               >
                 Browse catalogue
               </a>
@@ -405,9 +399,9 @@ export default function MembershipPage() {
         </div>
 
         {/* FAQs */}
-        <div className="mt-10 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 text-center">
+        <div className="mt-2 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 text-center">
           <h2 className="text-lg font-semibold">Membership FAQs</h2>
-          <div className="mx-auto mt-4 max-w-2xl space-y-3 text-sm text-white/70">
+          <div className="mx-auto mt-2 max-w-2xl space-y-3 text-sm text-white/70">
             <p>
               <span className="font-semibold text-white">Does it auto-renew?</span>{" "}
               Not yet. For now, you renew manually when your membership expires.
