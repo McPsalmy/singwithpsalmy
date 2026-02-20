@@ -1,5 +1,6 @@
 import { Instagram, Youtube, Music2 } from "lucide-react";
 import "./globals.css";
+import SiteHeader from "./components/SiteHeader";
 
 export const metadata = {
   title: {
@@ -55,6 +56,9 @@ export default function RootLayout({
           </div>
 
           <div className="relative z-10 flex min-h-screen flex-col">
+            {/* ✅ site-wide header */}
+            <SiteHeader />
+
             <div className="flex-1">{children}</div>
 
             {/* site-wide footer */}

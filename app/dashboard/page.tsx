@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 type StatusResp = {
@@ -105,7 +104,7 @@ export default function DashboardPage() {
         return;
       }
 
-      // 1) Membership status
+      // 1) Membership status (small pill + for non-member hint)
       const res = await fetch("/api/public/membership/status", {
         cache: "no-store",
         headers: { Authorization: `Bearer ${token}` },
@@ -180,7 +179,7 @@ export default function DashboardPage() {
     );
     if (!ok) return;
 
-    const ok2 = prompt('Type CLEAR to confirm') === "CLEAR";
+    const ok2 = prompt("Type CLEAR to confirm") === "CLEAR";
     if (!ok2) {
       setToast("Cancelled.");
       return;
@@ -220,17 +219,29 @@ export default function DashboardPage() {
     }
   }
 
+  const membershipPill =
+    !loggedIn
+      ? { text: "Logged out", cls: "bg-white/10 text-white/80 ring-1 ring-white/15" }
+      : loading
+        ? { text: "Checking…", cls: "bg-white/10 text-white/80 ring-1 ring-white/15" }
+        : status?.ok && isMember
+          ? { text: "Member", cls: "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/20" }
+          : status?.ok && !isMember
+            ? { text: "Not a member", cls: "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20" }
+            : { text: "Status error", cls: "bg-white/10 text-white/80 ring-1 ring-white/15" };
+
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-5xl px-5 py-12">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
-            <p className="mt-2 text-sm text-white/65">
-              Your membership status and purchase history — all in one place.
-            </p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-semibold tracking-tight">Purchases</h1>
+              <span className={`rounded-xl px-3 py-1 text-xs ${membershipPill.cls}`}>
+                {membershipPill.text}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-white/65">Your paid track history and Paystack references.</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -241,7 +252,14 @@ export default function DashboardPage() {
               Browse songs
             </a>
 
-            {loggedIn ? (
+            {!loggedIn ? (
+              <a
+                href="/signin"
+                className="inline-flex w-fit rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                Log in
+              </a>
+            ) : (
               <button
                 onClick={logout}
                 disabled={busyLogout}
@@ -255,107 +273,44 @@ export default function DashboardPage() {
               >
                 {busyLogout ? "Logging out..." : "Log out"}
               </button>
-            ) : null}
+            )}
           </div>
         </div>
 
-        {/* Account */}
-        <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-lg font-semibold">Account</div>
-              <div className="mt-1 text-sm text-white/65">
-                Log in with the same email you used for membership purchases.
-              </div>
+        {!loggedIn ? (
+          <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+            <div className="text-lg font-semibold">Log in to view purchases</div>
+            <p className="mt-2 text-sm text-white/65">
+              Your purchases are linked to your account email. Log in to see your history.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <a
+                href="/signin"
+                className="inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                Log in
+              </a>
+              <a
+                href="/signup"
+                className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Create account
+              </a>
+              <a
+                href="/recover"
+                className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Recover with reference
+              </a>
             </div>
-
-            {loggedIn ? (
-              <div className="hidden sm:block rounded-2xl bg-black/30 px-3 py-2 text-xs text-white/70 ring-1 ring-white/10">
-                Signed in as <span className="text-white">{status?.email}</span>
-              </div>
-            ) : null}
           </div>
-
-          {loading ? (
-            <div className="mt-4 text-sm text-white/70">Loading…</div>
-          ) : !status?.ok ? (
-            <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
-              ❌ {status?.error || "Unknown error"}
-            </div>
-          ) : !loggedIn ? (
-            <div className="mt-5">
-              <div className="text-sm text-white/70">You’re not logged in yet.</div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <a
-                  href="/signin"
-                  className="inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-                >
-                  Log in
-                </a>
-                <a
-                  href="/signup"
-                  className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                >
-                  Create account
-                </a>
-              </div>
-
-              <div className="mt-4 rounded-2xl bg-black/30 p-4 text-xs text-white/60 ring-1 ring-white/10">
-                <div className="text-white/80">Tip</div>
-                <div className="mt-1">
-                  Walk-in purchases still work without login — keep your Paystack reference safe for recovery.
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-                <div className="text-xs text-white/60">Signed-in email</div>
-                <div className="mt-1 text-sm font-semibold break-all">{status.email}</div>
-              </div>
-
-              <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-                <div className="text-xs text-white/60">Membership</div>
-                <div className="mt-1 text-sm font-semibold">{isMember ? "Active" : "Not active"}</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Plan: {status.plan ?? "—"} • Expires: {fmt(status.expires_at)}
-                </div>
-              </div>
-
-              <div className="md:col-span-2 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-                <div className="text-xs text-white/60">How access works</div>
-                <div className="mt-1 text-sm text-white/70">
-                  If you subscribe with this email, membership unlocks instant downloads automatically.
-                  Non-members can still purchase individual tracks anytime.
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <a
-                    href="/membership"
-                    className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                  >
-                    {isMember ? "Manage membership" : "Join membership"}
-                  </a>
-                  <a
-                    href="/request"
-                    className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                  >
-                    Request a song
-                  </a>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Purchases */}
-        {loggedIn ? (
+        ) : (
           <div className="mt-8 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-lg font-semibold">Purchases</div>
+                <div className="text-lg font-semibold">Purchase history</div>
                 <p className="mt-1 text-sm text-white/65">
-                  Your Paystack reference is shown here for records. Recovery is time-limited after purchase.
+                  Keep your Paystack reference safe. Recovery/download access is time-limited after purchase.
                 </p>
               </div>
 
@@ -446,8 +401,8 @@ export default function DashboardPage() {
               <div className="mt-6 rounded-2xl bg-white/5 p-5 ring-1 ring-white/10">
                 <div className="text-sm font-semibold">Want instant downloads?</div>
                 <p className="mt-1 text-sm text-white/65">
-                  Join membership to unlock direct downloads and skip the checkout step — recognized automatically when
-                  you log in with this email.
+                  Join membership to unlock direct downloads and skip checkout — recognized automatically when you log
+                  in with this email.
                 </p>
                 <a
                   href="/membership"
@@ -458,7 +413,7 @@ export default function DashboardPage() {
               </div>
             ) : null}
           </div>
-        ) : null}
+        )}
       </section>
     </main>
   );

@@ -82,37 +82,49 @@ export default function AccountPage() {
     };
   }, [userEmail]);
 
-  const membershipLabel = useMemo(() => {
-    if (!userEmail) return "Please log in to manage your account.";
-    if (loading) return "Loading…";
-    if (!ms?.ok) return "Membership status unavailable.";
+  const membershipPill = useMemo(() => {
+    if (!userEmail) return { text: "Logged out", tone: "muted" as const };
+    if (loading) return { text: "Checking…", tone: "muted" as const };
+
+    if (!ms?.ok) return { text: "Status unavailable", tone: "muted" as const };
 
     if (ms.isMember) {
-      const until = ms.expires_at ? ` • valid until ${fmtDate(ms.expires_at)}` : "";
-      const plan = ms.plan ? ` • ${ms.plan}` : "";
-      return `Active member${plan}${until}`;
+      const until = ms.expires_at ? ` • until ${fmtDate(ms.expires_at)}` : "";
+      return { text: `Member${until}`, tone: "good" as const };
     }
 
     if (!ms.isMember && ms.expires_at) {
-      return `Membership expired • last expiry was ${fmtDate(ms.expires_at)}`;
+      return { text: `Expired • ${fmtDate(ms.expires_at)}`, tone: "warn" as const };
     }
 
-    return "Not a member";
+    return { text: "Not a member", tone: "muted" as const };
   }, [userEmail, loading, ms]);
+
+  const pillClass =
+    membershipPill.tone === "good"
+      ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/20"
+      : membershipPill.tone === "warn"
+        ? "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20"
+        : "bg-white/10 text-white/80 ring-1 ring-white/15";
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-5">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Account</h1>
-        <p className="mt-1 text-sm text-white/70">
-          Manage your email preferences, security, and account deletion requests.
-        </p>
+      {/* Header row */}
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Account</h1>
+          <p className="mt-1 text-sm text-white/60">Your profile & membership.</p>
+        </div>
+
+        <span className={`shrink-0 rounded-xl px-3 py-2 text-xs ${pillClass}`}>
+          {membershipPill.text}
+        </span>
       </div>
 
-      {/* If not logged in */}
+      {/* Logged out */}
       {!userEmail ? (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <p className="text-white/80">{membershipLabel}</p>
+          <p className="text-sm text-white/75">Please log in to view your account.</p>
           <a
             href="/signin"
             className="mt-4 inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
@@ -121,19 +133,19 @@ export default function AccountPage() {
           </a>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Profile */}
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <h2 className="text-base font-semibold text-white">Profile</h2>
-            <div className="mt-3 space-y-2 text-sm text-white/80">
-              <div>
-                <span className="text-white/60">Email:</span>{" "}
-                <span className="font-medium text-white/90">{userEmail}</span>
-              </div>
-              <div>
-                <span className="text-white/60">Membership:</span>{" "}
-                <span className="font-medium text-white/90">{membershipLabel}</span>
-              </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Profile card */}
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-5 lg:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-white">Profile</h2>
+              <span className="rounded-xl bg-white/10 px-3 py-1 text-xs text-white/70 ring-1 ring-white/10">
+                Signed in
+              </span>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
+              <div className="text-xs uppercase tracking-wide text-white/50">Email</div>
+              <div className="mt-1 break-all text-sm font-medium text-white/90">{userEmail}</div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -141,48 +153,16 @@ export default function AccountPage() {
                 href="/membership"
                 className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
               >
-                Manage membership
+                Membership
               </a>
-              <a
-                href="/dashboard"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Go to dashboard
-              </a>
-            </div>
-          </section>
 
-          {/* Email preferences (placeholder for Step 2) */}
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <h2 className="text-base font-semibold text-white">Email preferences</h2>
-            <p className="mt-2 text-sm text-white/70">
-              Step 2 will add your marketing opt-in toggle here (transaction emails remain required).
-            </p>
-
-            <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
-              <div className="flex items-center justify-between">
-                <span>Marketing emails</span>
-                <span className="rounded-lg bg-white/10 px-2 py-1 text-xs ring-1 ring-white/10">
-                  Coming next
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Security */}
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <h2 className="text-base font-semibold text-white">Security</h2>
-            <p className="mt-2 text-sm text-white/70">
-              Use these controls to keep your account safe.
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
               <a
                 href="/reset-password"
                 className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
               >
                 Reset password
               </a>
+
               <a
                 href="/update-password"
                 className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
@@ -190,32 +170,57 @@ export default function AccountPage() {
                 Update password
               </a>
             </div>
+          </section>
 
-            <p className="mt-3 text-xs text-white/55">
-              (Optional hardening later: “Log out other devices” session revocation.)
+          {/* Quick actions */}
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h2 className="text-base font-semibold text-white">Quick actions</h2>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <a
+                href="/browse"
+                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Browse songs
+              </a>
+              <a
+                href="/request"
+                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Request a song
+              </a>
+              <a
+                href="/dashboard"
+                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Purchase history
+              </a>
+            </div>
+
+            <p className="mt-3 text-xs text-white/50">
+              (We may remove this later if dashboard becomes redundant.)
             </p>
           </section>
 
-          {/* Danger zone (placeholder for Step 3/4) */}
-          <section className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
-            <h2 className="text-base font-semibold text-red-200">Danger zone</h2>
-            <p className="mt-2 text-sm text-white/70">
-              Account deletion will remove your login and anonymize your email in purchase/membership records for
-              compliance.
-            </p>
+          {/* Danger zone */}
+          <section className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5 lg:col-span-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-red-200">Delete account</h2>
+                <p className="mt-1 text-xs text-white/55">
+                  This will remove your login and anonymize your email in payment records.
+                </p>
+              </div>
 
-            <button
-              type="button"
-              disabled
-              className="mt-4 inline-flex cursor-not-allowed rounded-xl bg-red-500/20 px-4 py-2 text-sm text-red-200 ring-1 ring-red-400/20"
-              title="We will enable this in Step 3"
-            >
-              Delete account (Step 3)
-            </button>
-
-            <p className="mt-2 text-xs text-white/55">
-              We’ll enable this only after the secure API route and confirmation flow are implemented.
-            </p>
+              <button
+                type="button"
+                disabled
+                className="inline-flex cursor-not-allowed rounded-xl bg-red-500/20 px-4 py-2 text-sm text-red-200 ring-1 ring-red-400/20"
+                title="We will enable this after the secure delete API is added"
+              >
+                Delete account (coming soon)
+              </button>
+            </div>
           </section>
         </div>
       )}
