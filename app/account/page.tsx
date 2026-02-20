@@ -428,7 +428,7 @@ export default function AccountPage() {
           </div>
 
           {/* Delete account request */}
-          <div className="md:col-span-2 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
+          
             <div className="text-lg font-semibold">Delete account request</div>
             <p className="mt-2 text-sm text-white/65">
               Submit a request and we’ll confirm ownership by email before processing.
@@ -439,7 +439,7 @@ export default function AccountPage() {
               <textarea
                 value={delReason}
                 onChange={(e) => setDelReason(e.target.value)}
-                className="mt-2 min-h-[96px] w-full resize-y rounded-xl bg-black/20 p-3 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/40"
+                className="mt-2 min-h-[96px] w-full resize-y bg-black/20 p-3 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/40"
                 placeholder="Tell us why (optional). Example: I no longer use the service."
                 maxLength={1000}
               />
@@ -477,18 +477,12 @@ export default function AccountPage() {
                 Email support (fallback)
               </a>
 
-              <a
-                href="/dmca"
-                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
-              >
-                DMCA / Rights help
-              </a>
             </div>
 
             <div className="mt-3 text-xs text-white/55">
               We’ll confirm ownership and process it quickly.
             </div>
-          </div>
+          
         </div>
       </section>
     </main>
