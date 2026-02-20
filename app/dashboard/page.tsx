@@ -1,7 +1,8 @@
-export const dynamic = "force-dynamic";
+"use client";
 
+import { useEffect, useMemo, useState } from "react";
 import SiteHeader from "../components/SiteHeader";
-import { cookies } from "next/headers";
+import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 type StatusResp = {
   ok: boolean;
@@ -27,42 +28,58 @@ function fmt(iso?: string | null) {
   }
 }
 
-export default async function DashboardPage() {
-  // Fetch membership status using the SAME cookies from this request
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((c) => `${c.name}=${c.value}`)
-    .join("; ");
+export default function DashboardPage() {
+  const supabase = useMemo(() => supabaseAuthClient(), []);
 
-  let data: StatusResp | null = null;
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<StatusResp | null>(null);
 
-  try {
-    const res = await fetch(
-      `${process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || ""}/api/public/membership/status`,
-      {
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      setLoading(true);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || "";
+
+      // If no session, show logged-out state (no loop)
+      if (!token) {
+        if (!alive) return;
+        setStatus({ ok: true, isMember: false });
+        setLoading(false);
+        return;
+      }
+
+      // Call membership status with Bearer token so server can verify identity
+      const res = await fetch("/api/public/membership/status", {
         cache: "no-store",
         headers: {
-          Cookie: cookieHeader,
+          Authorization: `Bearer ${token}`,
         },
+      });
+
+      const out = (await res.json().catch(() => null)) as StatusResp | null;
+
+      if (!alive) return;
+
+      if (!res.ok || !out?.ok) {
+        setStatus({ ok: false, error: out?.error || `Failed (HTTP ${res.status})` });
+        setLoading(false);
+        return;
       }
-    );
 
-    data = (await res.json().catch(() => null)) as StatusResp | null;
-
-    if (!res.ok || !data?.ok) {
-      data = { ok: false, error: data?.error || `Failed (HTTP ${res.status})` };
+      setStatus(out);
+      setLoading(false);
     }
-  } catch (e: any) {
-    data = { ok: false, error: e?.message || "Could not reach server." };
-  }
 
-  const loggedIn = !!data?.email;
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [supabase]);
 
-  const membershipLabel = data?.isMember ? "Active" : "Not active";
-  const membershipTone = data?.isMember
-    ? "bg-emerald-500/15 text-emerald-200 ring-emerald-400/20"
-    : "bg-white/10 text-white/70 ring-white/15";
+  const loggedIn = !!status?.email;
 
   return (
     <main className="min-h-screen text-white">
@@ -73,7 +90,7 @@ export default async function DashboardPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
             <p className="mt-2 text-sm text-white/65">
-              Your account overview — membership status and downloads access.
+              Your account overview — membership status and access.
             </p>
           </div>
 
@@ -85,38 +102,21 @@ export default async function DashboardPage() {
           </a>
         </div>
 
-        {/* Account Card */}
         <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-lg font-semibold">Account</div>
-              <div className="mt-1 text-sm text-white/65">
-                Sign in once, and your membership is recognized automatically by email.
-              </div>
-            </div>
-
-            {data?.ok && loggedIn ? (
-              <span
-                className={[
-                  "rounded-full px-3 py-1 text-xs ring-1",
-                  membershipTone,
-                ].join(" ")}
-              >
-                {membershipLabel}
-              </span>
-            ) : null}
+          <div className="text-lg font-semibold">Account</div>
+          <div className="mt-1 text-sm text-white/65">
+            Logged-in users are matched to membership by email.
           </div>
 
-          {!data?.ok ? (
+          {loading ? (
+            <div className="mt-4 text-sm text-white/70">Loading…</div>
+          ) : !status?.ok ? (
             <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
-              ❌ {data?.error || "Unknown error"}
+              ❌ {status?.error || "Unknown error"}
             </div>
           ) : !loggedIn ? (
             <div className="mt-5">
-              <div className="text-sm text-white/70">
-                You’re not logged in yet.
-              </div>
-
+              <div className="text-sm text-white/70">You’re not logged in yet.</div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <a
                   href="/signin"
@@ -131,23 +131,21 @@ export default async function DashboardPage() {
                   Create account
                 </a>
               </div>
-
-              <div className="mt-4 text-xs text-white/50">
-                Walk-in purchases still work without login. Accounts are for a smoother experience.
-              </div>
             </div>
           ) : (
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
                 <div className="text-xs text-white/60">Signed-in email</div>
-                <div className="mt-1 text-sm font-semibold break-all">{data.email}</div>
+                <div className="mt-1 text-sm font-semibold break-all">{status.email}</div>
               </div>
 
               <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
                 <div className="text-xs text-white/60">Membership</div>
-                <div className="mt-1 text-sm font-semibold">{membershipLabel}</div>
+                <div className="mt-1 text-sm font-semibold">
+                  {status.isMember ? "Active" : "Not active"}
+                </div>
                 <div className="mt-1 text-xs text-white/60">
-                  Plan: {data.plan ?? "—"} • Expires: {fmt(data.expires_at)}
+                  Plan: {status.plan ?? "—"} • Expires: {fmt(status.expires_at)}
                 </div>
               </div>
 

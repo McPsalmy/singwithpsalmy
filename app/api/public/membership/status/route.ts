@@ -5,7 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
 
@@ -24,27 +24,43 @@ export async function GET() {
     const pendingCookies: Array<{ name: string; value: string; options: any }> = [];
     const pendingRemovals: Array<{ name: string; options: any }> = [];
 
-    // 1) Try Supabase Auth session first (logged-in users)
+    // 0) If client sends Authorization: Bearer <token>, use that first (most reliable)
     let email = "";
-    try {
-      const supaAuth = createServerClient(supabaseUrl, anonKey, {
-        cookies: {
-          get(name) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name, value, options) {
-            pendingCookies.push({ name, value, options });
-          },
-          remove(name, options) {
-            pendingRemovals.push({ name, options });
-          },
-        },
-      });
+    const authHeader = req.headers.get("authorization") || "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
 
-      const { data } = await supaAuth.auth.getUser();
-      email = (data?.user?.email || "").trim().toLowerCase();
-    } catch {
-      // ignore auth errors and fall back to membership cookies
+    if (bearer) {
+      const tokenClient = createClient(supabaseUrl, anonKey, {
+        auth: { persistSession: false },
+      });
+      const { data, error } = await tokenClient.auth.getUser(bearer);
+      if (!error) {
+        email = (data?.user?.email || "").trim().toLowerCase();
+      }
+    }
+
+    // 1) Try Supabase Auth cookies next (server session)
+    if (!email) {
+      try {
+        const supaAuth = createServerClient(supabaseUrl, anonKey, {
+          cookies: {
+            get(name) {
+              return cookieStore.get(name)?.value;
+            },
+            set(name, value, options) {
+              pendingCookies.push({ name, value, options });
+            },
+            remove(name, options) {
+              pendingRemovals.push({ name, options });
+            },
+          },
+        });
+
+        const { data } = await supaAuth.auth.getUser();
+        email = (data?.user?.email || "").trim().toLowerCase();
+      } catch {
+        // ignore and fall back
+      }
     }
 
     // 2) Fallback to existing membership cookies (legacy path)
@@ -59,11 +75,10 @@ export async function GET() {
       }
     }
 
-    // If we still don't have an email, user is not logged in / not a member
+    // If still no email, user is not logged in / not a member
     if (!email) {
       const noMemberRes = NextResponse.json({ ok: true, isMember: false });
 
-      // Apply any cookie updates Supabase Auth requested
       for (const c of pendingCookies) {
         noMemberRes.cookies.set({ name: c.name, value: c.value, ...c.options });
       }
@@ -104,7 +119,6 @@ export async function GET() {
 
     const finalRes = NextResponse.json(payload);
 
-    // Apply any cookie updates Supabase Auth requested
     for (const c of pendingCookies) {
       finalRes.cookies.set({ name: c.name, value: c.value, ...c.options });
     }
@@ -112,14 +126,14 @@ export async function GET() {
       finalRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
     }
 
-    // Keep legacy cookies in sync for compatibility with existing member flow
+    // Keep legacy cookies in sync for compatibility
     if (isActive) {
       finalRes.cookies.set("swp_member", "1", {
         path: "/",
         httpOnly: true,
         sameSite: "lax",
         secure: true,
-        maxAge: 60 * 60 * 24 * 30, // 30 days
+        maxAge: 60 * 60 * 24 * 30,
       });
       finalRes.cookies.set("swp_member_email", email, {
         path: "/",
