@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CartIcon from "./CartIcon";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
@@ -27,6 +27,21 @@ export default function SiteHeader() {
   const [ms, setMs] = useState<MemberStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // Desktop "Legal" dropdown state
+  const [legalOpen, setLegalOpen] = useState(false);
+  const legalRef = useRef<HTMLDivElement | null>(null);
+
+  // Close desktop legal dropdown when clicking outside
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!legalRef.current) return;
+      const t = e.target as Node;
+      if (!legalRef.current.contains(t)) setLegalOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   // Supabase Auth user (for Log in / Log out UI)
   useEffect(() => {
@@ -164,16 +179,11 @@ export default function SiteHeader() {
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-6 text-sm text-white/70 md:flex">
-          {/* Show Dashboard + Account only when logged in */}
+          {/* Account only when logged in */}
           {userEmail ? (
-            <>
-              <a className="hover:text-white" href="/dashboard">
-                Dashboard
-              </a>
-              <a className="hover:text-white" href="/account">
-                Account
-              </a>
-            </>
+            <a className="hover:text-white" href="/account">
+              Account
+            </a>
           ) : null}
 
           <a className="hover:text-white" href="/browse">
@@ -186,12 +196,37 @@ export default function SiteHeader() {
             Request a song
           </a>
 
-          <a className="hover:text-white" href="/dmca">
-            DMCA
-          </a>
-          <a className="hover:text-white" href="/rights-holder">
-            Rights-holder
-          </a>
+          {/* Combined menu for DMCA + Rights-holder */}
+          <div className="relative" ref={legalRef}>
+            <button
+              type="button"
+              onClick={() => setLegalOpen((v) => !v)}
+              className="hover:text-white"
+              aria-haspopup="menu"
+              aria-expanded={legalOpen}
+            >
+              Legal ▾
+            </button>
+
+            {legalOpen ? (
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-lg">
+                <a
+                  href="/dmca"
+                  className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+                  onClick={() => setLegalOpen(false)}
+                >
+                  DMCA notice
+                </a>
+                <a
+                  href="/rights-holder"
+                  className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+                  onClick={() => setLegalOpen(false)}
+                >
+                  Rights-holder request
+                </a>
+              </div>
+            ) : null}
+          </div>
         </nav>
 
         {/* Right-side actions */}
@@ -284,24 +319,11 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
-              {/* Dashboard + Account visible on mobile too, only when logged in */}
+              {/* Account visible on mobile too, only when logged in */}
               {userEmail ? (
-                <>
-                  <a
-                    onClick={() => setMenuOpen(false)}
-                    className="hover:text-white"
-                    href="/dashboard"
-                  >
-                    Dashboard
-                  </a>
-                  <a
-                    onClick={() => setMenuOpen(false)}
-                    className="hover:text-white"
-                    href="/account"
-                  >
-                    Account
-                  </a>
-                </>
+                <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/account">
+                  Account
+                </a>
               ) : null}
 
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
@@ -314,13 +336,28 @@ export default function SiteHeader() {
               >
                 Membership
               </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/request"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/request">
                 Request a song
               </a>
+
+              {/* Combined links for legal/compliance pages */}
+              <div className="mt-1 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">
+                  Legal
+                </div>
+                <div className="flex flex-col gap-2">
+                  <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
+                    DMCA notice
+                  </a>
+                  <a
+                    onClick={() => setMenuOpen(false)}
+                    className="hover:text-white"
+                    href="/rights-holder"
+                  >
+                    Rights-holder request
+                  </a>
+                </div>
+              </div>
 
               {!userEmail ? (
                 <>
@@ -343,17 +380,6 @@ export default function SiteHeader() {
                   Log out
                 </button>
               )}
-
-              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
-                DMCA
-              </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/rights-holder"
-              >
-                Rights-holder
-              </a>
             </div>
           </div>
         </div>
