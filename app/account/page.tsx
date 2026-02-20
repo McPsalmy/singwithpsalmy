@@ -57,6 +57,7 @@ export default function AccountPage() {
 
     (async () => {
       setLoading(true);
+      setDelMsg(null);
 
       const { data: userData } = await supabase.auth.getUser();
       const email = userData?.user?.email ?? null;
@@ -159,7 +160,7 @@ export default function AccountPage() {
     }
 
     const ok = confirm(
-      "Submit an account deletion request?\n\nThis will notify support. Your account won’t be deleted instantly."
+      "Submit an account deletion request?\n\nThis does NOT delete instantly. We will email you to confirm ownership."
     );
     if (!ok) return;
 
@@ -189,7 +190,7 @@ export default function AccountPage() {
       setDelBusy(false);
 
       if (!res.ok || !out?.ok) {
-        setDelMsg(out?.error || `Failed (HTTP ${res.status}). You can use email support below.`);
+        setDelMsg(out?.error || `Failed (HTTP ${res.status}). Use Email support below.`);
         return;
       }
 
@@ -197,7 +198,7 @@ export default function AccountPage() {
       setDelMsg("✅ Request submitted. We’ll email you to confirm.");
     } catch (e: any) {
       setDelBusy(false);
-      setDelMsg(e?.message || "Request failed. You can use email support below.");
+      setDelMsg(e?.message || "Request failed. Use Email support below.");
     }
   }
 
@@ -212,10 +213,7 @@ export default function AccountPage() {
       <section className="mx-auto max-w-5xl px-5 py-12">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <a
-              href="/"
-              className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white"
-            >
+            <a href="/" className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white">
               <span aria-hidden>←</span> Home
             </a>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight">Account</h1>
@@ -427,24 +425,35 @@ export default function AccountPage() {
             )}
           </div>
 
-          {/* Delete account request */}
-          
-            <div className="text-lg font-semibold">Delete account request</div>
-            <p className="mt-2 text-sm text-white/65">
-              Submit a request and we’ll confirm ownership by email before processing.
-            </p>
+          {/* Delete account request (CLEAN, ONE CARD) */}
+          <div className="md:col-span-2 rounded-3xl bg-red-500/5 p-6 ring-1 ring-red-400/15">
+            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <div className="text-lg font-semibold">Delete account</div>
+                <p className="mt-1 text-sm text-white/65">
+                  This creates a deletion request. We’ll email you to confirm ownership before processing.
+                </p>
+              </div>
 
-            <div className="mt-4 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-              <div className="text-xs text-white/60">Reason (optional)</div>
+              <a
+                href="/dmca"
+                className="shrink-0 rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              >
+                DMCA / Rights help
+              </a>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs text-white/60">Reason (optional)</label>
               <textarea
                 value={delReason}
                 onChange={(e) => setDelReason(e.target.value)}
-                className="mt-2 min-h-[96px] w-full resize-y bg-black/20 p-3 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/40"
-                placeholder="Tell us why (optional). Example: I no longer use the service."
+                className="mt-2 w-full rounded-2xl bg-black/20 p-4 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/40 focus:ring-white/20"
+                placeholder="Optional: tell us why you want to delete your account."
                 maxLength={1000}
               />
               <div className="mt-2 text-xs text-white/50">
-                This does not delete instantly — it creates a support request.
+                Note: payment records may be retained for compliance, but access is removed.
               </div>
             </div>
 
@@ -454,14 +463,15 @@ export default function AccountPage() {
               </div>
             ) : null}
 
-           
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 disabled={!loggedIn || delBusy}
                 onClick={submitDeleteRequest}
                 className={[
+                  "rounded-2xl px-5 py-3 text-sm font-semibold ring-1",
                   !loggedIn || delBusy
                     ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
-                    : "bg-red-500/20 text-white ring-red-400/20 hover:bg-red-500/30",
+                    : "bg-red-500/20 text-white ring-red-400/25 hover:bg-red-500/30",
                 ].join(" ")}
                 title={!loggedIn ? "Log in to submit a request" : "Submit delete request"}
               >
@@ -475,13 +485,14 @@ export default function AccountPage() {
               >
                 Email support (fallback)
               </a>
-
-           
-
-            <div className="mt-3 text-xs text-white/55">
-              We’ll confirm ownership and process it quickly.
             </div>
-          
+
+            {!loggedIn ? (
+              <div className="mt-3 text-xs text-white/55">
+                You must be logged in to submit a request from here.
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
     </main>
