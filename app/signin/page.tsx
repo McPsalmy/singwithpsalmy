@@ -33,7 +33,8 @@ export default function SignInPage() {
       return;
     }
 
-    window.location.href = "/membership";
+    // After sign-in, go to Dashboard (membership status + future order history)
+    window.location.href = "/dashboard";
   }
 
   async function sendMagicLink(e: React.FormEvent) {
@@ -41,10 +42,14 @@ export default function SignInPage() {
     setMsg(null);
     setBusy(true);
 
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://singwithpsalmy.com";
+
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/membership`,
+        // Magic link will return to dashboard after login
+        emailRedirectTo: `${siteUrl}/dashboard`,
       },
     });
 
@@ -63,9 +68,9 @@ export default function SignInPage() {
       <SiteHeader />
 
       <section className="mx-auto max-w-md px-5 py-14">
-        <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Log in</h1>
         <p className="mt-2 text-sm text-white/70">
-          Sign in to access membership features and manage your account.
+          Log in to manage your membership and access member-only features.
         </p>
 
         <div className="mt-6 flex gap-2">
@@ -114,6 +119,7 @@ export default function SignInPage() {
             type="email"
             className="mt-2 w-full rounded-xl bg-black/40 px-4 py-3 text-sm text-white ring-1 ring-white/15 outline-none"
             placeholder="you@example.com"
+            autoComplete="email"
             required
           />
 
@@ -128,6 +134,7 @@ export default function SignInPage() {
                   type={showPassword ? "text" : "password"}
                   className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
                   placeholder="Your password"
+                  autoComplete="current-password"
                   required
                 />
 
@@ -141,19 +148,46 @@ export default function SignInPage() {
                 </button>
               </div>
 
-              <div className="mt-3 text-right">
+              <div className="mt-3 flex items-center justify-between">
                 <a
                   href="/reset-password"
                   className="text-xs text-white/70 underline hover:text-white"
                 >
                   Forgot password?
                 </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("magic");
+                    setMsg(null);
+                    setShowPassword(false);
+                  }}
+                  className="text-xs text-white/70 underline hover:text-white"
+                >
+                  Use magic link instead
+                </button>
               </div>
             </>
           ) : (
-            <p className="mt-4 text-xs text-white/60">
-              We’ll email you a secure sign-in link.
-            </p>
+            <>
+              <p className="mt-4 text-xs text-white/60">
+                We’ll email you a secure sign-in link. No password needed.
+              </p>
+
+              <div className="mt-3 text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("password");
+                    setMsg(null);
+                  }}
+                  className="text-xs text-white/70 underline hover:text-white"
+                >
+                  Use password instead
+                </button>
+              </div>
+            </>
           )}
 
           <button
@@ -163,7 +197,7 @@ export default function SignInPage() {
               busy ? "bg-white/10 text-white/70" : "bg-white text-black hover:bg-white/90",
             ].join(" ")}
           >
-            {busy ? "Working..." : mode === "password" ? "Sign in" : "Send link"}
+            {busy ? "Working..." : mode === "password" ? "Log in" : "Send link"}
           </button>
 
           {msg ? (
@@ -181,12 +215,15 @@ export default function SignInPage() {
           </div>
         </form>
 
-        <p className="mt-6 text-xs text-center text-white/55">
-          You don't need an account to purchase karaoke videos. All you need is your email address.
-        </p>
-        <p className="mt-2 text-xs text-center text-white/55">
-          Accounts are mainly for subscribing members.
-        </p>
+        <div className="mt-6 rounded-2xl bg-white/5 p-4 text-center text-xs text-white/60 ring-1 ring-white/10">
+          <div className="text-white/80">Quick note</div>
+          <div className="mt-1">
+            You don’t need an account to purchase karaoke practice tracks — just your email address.
+          </div>
+          <div className="mt-1">
+            Accounts are mainly for members (subscription access, renewals, and upcoming dashboards).
+          </div>
+        </div>
       </section>
     </main>
   );
