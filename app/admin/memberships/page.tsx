@@ -51,6 +51,9 @@ export default function AdminMembershipsPage() {
     total: 0,
   });
 
+  // last refreshed (client-side clock)
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
     setLoadErr(null);
@@ -68,14 +71,17 @@ export default function AdminMembershipsPage() {
         setLoadErr(out?.error || `Failed (HTTP ${res.status})`);
         setRows([]);
         setCounts({ active: 0, expired: 0, total: 0 });
+        setLastRefreshedAt(null);
         return;
       }
 
       setRows(out.data ?? []);
       setCounts(out.counts ?? { active: 0, expired: 0, total: 0 });
+      setLastRefreshedAt(new Date().toISOString());
     } catch (e: any) {
       setLoading(false);
       setLoadErr(e?.message || "Could not reach server.");
+      setLastRefreshedAt(null);
     }
   }
 
@@ -150,12 +156,17 @@ export default function AdminMembershipsPage() {
               </p>
             </div>
 
-            <button
-              onClick={load}
-              className="rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-            >
-              Refresh
-            </button>
+            <div className="text-right">
+              <button
+                onClick={load}
+                className="rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Refresh
+              </button>
+              <div className="mt-2 text-xs text-white/50">
+                Last refreshed: {lastRefreshedAt ? fmt(lastRefreshedAt) : "—"}
+              </div>
+            </div>
           </div>
 
           {/* counts */}
