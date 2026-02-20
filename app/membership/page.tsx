@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import SiteHeader from "../components/SiteHeader";
-import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 const plans = [
   {
@@ -71,8 +70,6 @@ type MembershipStatus = {
 };
 
 export default function MembershipPage() {
-  const supabase = useMemo(() => supabaseAuthClient(), []);
-
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
 
   const [showEmail, setShowEmail] = useState(false);
@@ -84,53 +81,13 @@ export default function MembershipPage() {
   const [checking, setChecking] = useState(true);
   const [ms, setMs] = useState<MembershipStatus | null>(null);
 
-  // Auth (for “My Dashboard” button + best email prefill)
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  // Track Supabase Auth user
+  // Load membership status from server (httpOnly cookies + DB)
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!cancelled) setUserEmail(data?.user?.email ?? null);
-
-        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-          if (!cancelled) setUserEmail(session?.user?.email ?? null);
-        });
-
-        return () => sub?.subscription?.unsubscribe?.();
-      } catch {
-        if (!cancelled) setUserEmail(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
-
-  // Load membership status:
-  // Use Bearer token when logged-in (authoritative), otherwise fall back to legacy cookies.
-  useEffect(() => {
-    let cancelled = false;
-
     (async () => {
       try {
         setChecking(true);
-
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token || "";
-
-        const res = await fetch("/api/public/membership/status", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-
+        const res = await fetch("/api/public/membership/status", { cache: "no-store" });
         const out = (await res.json().catch(() => ({}))) as MembershipStatus;
-
-        if (cancelled) return;
 
         if (!res.ok || !out?.ok) {
           console.error(out);
@@ -140,28 +97,21 @@ export default function MembershipPage() {
 
         setMs(out);
 
-        // Email prefill priority:
-        // 1) Auth email
-        // 2) Membership status email
-        // 3) Saved localStorage
-        const authEmail = (userEmail || "").trim();
-        const statusEmail = String(out?.email || "").trim();
-        const saved = localStorage.getItem("swp_email") || "";
-
-        const best = authEmail || statusEmail || saved;
-        if (best) {
-          setEmail(best);
-          localStorage.setItem("swp_email", best);
+        // Prefill email from membership status first (best),
+        // fallback to local saved email.
+        const e = String(out?.email || "").trim();
+        if (e) {
+          setEmail(e);
+          localStorage.setItem("swp_email", e);
+        } else {
+          const saved = localStorage.getItem("swp_email") || "";
+          if (saved) setEmail(saved);
         }
       } finally {
-        if (!cancelled) setChecking(false);
+        setChecking(false);
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase, userEmail]);
+  }, []);
 
   const banner = useMemo(() => {
     if (checking) return null;
@@ -171,7 +121,9 @@ export default function MembershipPage() {
       return {
         tone: "good" as const,
         title: "Membership active",
-        body: ms.expires_at ? `Active until ${fmtDate(ms.expires_at)}` : "Active membership detected.",
+        body: ms.expires_at
+          ? `Active until ${fmtDate(ms.expires_at)}`
+          : "Active membership detected.",
       };
     }
 
@@ -187,7 +139,7 @@ export default function MembershipPage() {
     return {
       tone: "warn" as const,
       title: "No active membership",
-      body: "Choose a plan to unlock direct downloads and members-only song requests.",
+      body: "Choose a plan to unlock full downloads and song requests.",
     };
   }, [checking, ms]);
 
@@ -239,8 +191,6 @@ export default function MembershipPage() {
     }
   }
 
-  const loggedIn = !!userEmail;
-
   return (
     <main className="min-h-screen text-white">
       <SiteHeader />
@@ -250,7 +200,8 @@ export default function MembershipPage() {
           <h1 className="text-4xl font-semibold tracking-tight text-center">Membership</h1>
 
           <p className="mt-3 text-base leading-relaxed text-white/70 text-center">
-            Members get access to the full song catalog and all available versions while their membership is active.
+            Members get access to the full song catalog and all available versions while their
+            membership is active.
           </p>
 
           {/* Membership status banner */}
@@ -258,58 +209,20 @@ export default function MembershipPage() {
             <div
               className={[
                 "mt-6 rounded-3xl p-4 ring-1",
-                banner.tone === "good" ? "bg-emerald-500/10 ring-emerald-400/20" : "bg-white/5 ring-white/10",
+                banner.tone === "good"
+                  ? "bg-emerald-500/10 ring-emerald-400/20"
+                  : "bg-white/5 ring-white/10",
               ].join(" ")}
             >
               <div className="text-sm font-semibold">{banner.title}</div>
               <div className="mt-1 text-sm text-white/70">{banner.body}</div>
-
-              {loggedIn ? (
-                <div className="mt-2 text-xs text-white/55">
-                  Signed in as <span className="text-white">{userEmail}</span>
-                </div>
-              ) : ms?.email ? (
+              {ms?.email ? (
                 <div className="mt-2 text-xs text-white/55">
                   Email: <span className="text-white">{ms.email}</span>
                 </div>
               ) : null}
-
-              {/* Primary shortcuts */}
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {loggedIn ? (
-                  <a
-                    href="/dashboard"
-                    className="rounded-2xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-white/90"
-                  >
-                    My dashboard
-                  </a>
-                ) : (
-                  <a
-                    href="/signin"
-                    className="rounded-2xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-white/90"
-                  >
-                    Log in to view dashboard
-                  </a>
-                )}
-
-                <a
-                  href="/browse"
-                  className="rounded-2xl bg-white/10 px-5 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
-                >
-                  Browse catalogue
-                </a>
-              </div>
             </div>
           ) : null}
-
-          {/* Tiny account tip (classy + useful) */}
-          <div className="mt-6 rounded-3xl bg-black/30 p-5 ring-1 ring-white/10 text-left">
-            <div className="text-xs text-white/60">How it works</div>
-            <div className="mt-2 text-sm text-white/70 leading-relaxed">
-              If you subscribe with your email, your account will automatically unlock member access whenever you log in.
-              Walk-in customers can still purchase without an account.
-            </div>
-          </div>
 
           <div className="mt-6 rounded-3xl bg-white/5 p-2 ring-1 ring-white/10">
             <div className="text-sm font-semibold">Single-track purchase</div>
@@ -317,6 +230,8 @@ export default function MembershipPage() {
               Not ready for membership? Buy any version of a track for a flat{" "}
               <span className="font-semibold text-white">₦700</span>.
             </p>
+
+           
           </div>
         </div>
 
@@ -334,7 +249,9 @@ export default function MembershipPage() {
                   p.highlight ? "bg-transparent ring-white/20" : "bg-transparent ring-white/10",
                 ].join(" ")}
               >
-                <div className={`pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br ${p.accent}`} />
+                <div
+                  className={`pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br ${p.accent}`}
+                />
 
                 {p.discountPct > 0 && (
                   <div className="absolute right-5 top-5 rounded-full bg-white/10 px-3 py-1 text-xs text-white/80 ring-1 ring-white/15">
@@ -355,7 +272,10 @@ export default function MembershipPage() {
                   <div className="mt-1 text-sm font-semibold">
                     {p.months === 1 ? formatNaira(p.pricePerMonth) : formatNaira(total)}
                     {p.months > 1 && (
-                      <span className="text-xs font-normal text-white/60"> (covers {p.months} months)</span>
+                      <span className="text-xs font-normal text-white/60">
+                        {" "}
+                        (covers {p.months} months)
+                      </span>
                     )}
                   </div>
                 </div>
@@ -384,13 +304,21 @@ export default function MembershipPage() {
                   disabled={busyPlan !== null}
                   className={[
                     "mt-8 w-full rounded-2xl px-5 py-3 text-sm font-semibold",
-                    busyPlan ? "bg-white/60 text-black cursor-not-allowed" : "bg-white text-black hover:bg-white/90",
+                    busyPlan
+                      ? "bg-white/60 text-black cursor-not-allowed"
+                      : "bg-white text-black hover:bg-white/90",
                   ].join(" ")}
                 >
-                  {busyPlan === planKey ? "Redirecting..." : ms?.isMember ? `Renew with ${p.name}` : `Choose ${p.name}`}
+                  {busyPlan === planKey
+                    ? "Redirecting..."
+                    : ms?.isMember
+                    ? `Renew with ${p.name}`
+                    : `Choose ${p.name}`}
                 </button>
 
-                <p className="mt-3 text-xs text-white/55">You’ll get access immediately after successful payment.</p>
+                <p className="mt-3 text-xs text-white/55">
+                  You’ll get access immediately after successful payment.
+                </p>
               </div>
             );
           })}
@@ -401,16 +329,24 @@ export default function MembershipPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-xs text-white/60 ">Member benefit</div>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight">Request songs not in the catalogue</h2>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight">
+                Request songs not in the catalogue
+              </h2>
               <p className="mt-2 text-sm text-white/70">
-                Active members can request karaoke practice tracks you want us to add next. We’ll create and upload them
-                for you to download.
+                Active members can request karaoke practice tracks you want us to add next. We’ll
+                create and upload them for you to download.
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/60">
-                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">Members-only</span>
-                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">Priority uploads</span>
-                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">Grows the catalogue</span>
+                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">
+                  Members-only
+                </span>
+                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">
+                  Priority uploads
+                </span>
+                <span className="rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15">
+                  Grows the catalogue
+                </span>
               </div>
             </div>
 
@@ -436,12 +372,12 @@ export default function MembershipPage() {
           <h2 className="text-lg font-semibold text-center">Membership FAQs</h2>
           <div className="mt-4 space-y-3 text-sm text-white/70">
             <p>
-              <span className="font-semibold text-white">Does it auto-renew?</span> Not yet. For now, you renew manually
-              when your membership expires.
+              <span className="font-semibold text-white">Does it auto-renew?</span>{" "}
+              Not yet. For now, you renew manually when your membership expires.
             </p>
             <p>
-              <span className="font-semibold text-white">Can I cancel anytime?</span> Yes. Since renewal is manual, you
-              can simply choose not to renew.
+              <span className="font-semibold text-white">Can I cancel anytime?</span>{" "}
+              Yes. Since renewal is manual, you can simply choose not to renew.
             </p>
           </div>
         </div>
@@ -467,7 +403,9 @@ export default function MembershipPage() {
             </div>
 
             {error ? (
-              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">❌ {error}</div>
+              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+                ❌ {error}
+              </div>
             ) : null}
 
             <div className="mt-6 grid grid-cols-2 gap-3">
