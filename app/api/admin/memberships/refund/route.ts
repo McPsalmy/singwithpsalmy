@@ -9,6 +9,8 @@ function addMonths(from: Date, months: number) {
   return d;
 }
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -16,7 +18,7 @@ export async function POST(req: Request) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { ok: false, error: "Missing Supabase env vars" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -26,7 +28,7 @@ export async function POST(req: Request) {
     if (!reference) {
       return NextResponse.json(
         { ok: false, error: "Missing reference" },
-        { status: 400 }
+        { status: 400, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -44,7 +46,7 @@ export async function POST(req: Request) {
     if (mpErr) {
       return NextResponse.json(
         { ok: false, error: mpErr.message || "Could not load membership payment" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -52,15 +54,15 @@ export async function POST(req: Request) {
     if (!mp) {
       return NextResponse.json(
         { ok: false, error: "Reference not found in membership_payments" },
-        { status: 404 }
+        { status: 404, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    const email = String(mp.email || "").trim();
+    const email = String(mp.email || "").trim().toLowerCase();
     if (!email) {
       return NextResponse.json(
         { ok: false, error: "Missing email on membership payment row" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -73,11 +75,11 @@ export async function POST(req: Request) {
     if (updErr) {
       return NextResponse.json(
         { ok: false, error: updErr.message || "Could not mark refunded" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // 3) Recompute membership expiry from ALL non-refunded membership payments
+    // 3) Load all SUCCESS payments for this email (non-refunded)
     const { data: payments, error: listErr } = await supabase
       .from("membership_payments")
       .select("months,paid_at,plan,status")
@@ -88,7 +90,7 @@ export async function POST(req: Request) {
     if (listErr) {
       return NextResponse.json(
         { ok: false, error: listErr.message || "Could not list membership payments" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -98,39 +100,52 @@ export async function POST(req: Request) {
         .from("memberships")
         .update({
           status: "expired",
-          expires_at: new Date(0).toISOString(),
+          expires_at: null,
+          plan: null,
         })
         .eq("email", email);
 
       if (memUpdErr) {
         return NextResponse.json(
           { ok: false, error: memUpdErr.message || "Could not expire membership" },
-          { status: 500 }
+          { status: 500, headers: { "Cache-Control": "no-store" } }
         );
       }
 
-      return NextResponse.json({
-        ok: true,
-        email,
-        status: "expired",
-        expires_at: null,
-        remaining_payments: 0,
-      });
+      return NextResponse.json(
+        {
+          ok: true,
+          email,
+          status: "expired",
+          expires_at: null,
+          remaining_payments: 0,
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
     }
 
-    // Base from the first successful payment paid_at
-    const firstPaidAt = payments[0].paid_at ? new Date(payments[0].paid_at) : new Date();
-    let cursor = firstPaidAt;
+    // 4) Recompute expiry using "extend from max(current_expiry, payment_date)"
+    // This prevents weird future drift and matches how subscriptions renew.
+    let cursor: Date | null = null;
 
     for (const p of payments) {
-      const m = Number((p as any).months || 0);
-      if (m > 0) cursor = addMonths(cursor, m);
+      const months = Number((p as any).months || 0);
+      const paidAt = (p as any).paid_at ? new Date((p as any).paid_at) : new Date();
+
+      if (!cursor) {
+        cursor = paidAt;
+      } else {
+        // if payment happens after expiry (gap), restart from payment date
+        if (paidAt.getTime() > cursor.getTime()) cursor = paidAt;
+      }
+
+      if (months > 0) cursor = addMonths(cursor, months);
     }
 
-    const newExpiry = cursor.toISOString();
+    const newExpiry = (cursor ?? new Date()).toISOString();
     const latestPlan = String((payments[payments.length - 1] as any)?.plan || "unknown");
 
-    // 4) Update the single memberships row
+    // 5) Update memberships derived state
     const { error: memErr } = await supabase
       .from("memberships")
       .update({
@@ -143,21 +158,24 @@ export async function POST(req: Request) {
     if (memErr) {
       return NextResponse.json(
         { ok: false, error: memErr.message || "Could not update membership expiry" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    return NextResponse.json({
-      ok: true,
-      email,
-      status: "active",
-      expires_at: newExpiry,
-      remaining_payments: payments.length,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        email,
+        status: "active",
+        expires_at: newExpiry,
+        remaining_payments: payments.length,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }
