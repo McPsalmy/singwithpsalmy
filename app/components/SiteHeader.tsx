@@ -16,10 +16,11 @@ type MemberStatus = {
 export default function SiteHeader() {
   const [ms, setMs] = useState<MemberStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const helpRef = useRef<HTMLDivElement | null>(null);
-
   const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // Desktop "Legal" dropdown
+  const [legalOpen, setLegalOpen] = useState(false);
+  const legalRef = useRef<HTMLDivElement | null>(null);
 
   // Supabase Auth user (for Log in / Log out UI)
   useEffect(() => {
@@ -45,16 +46,6 @@ export default function SiteHeader() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // close help dropdown on outside click
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!helpRef.current) return;
-      if (!helpRef.current.contains(e.target as Node)) setHelpOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
   // Membership status:
@@ -91,7 +82,17 @@ export default function SiteHeader() {
     return () => {
       cancelled = true;
     };
-  }, [userEmail]); // refresh membership view when auth changes
+  }, [userEmail]);
+
+  // close legal dropdown on outside click
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!legalRef.current) return;
+      if (!legalRef.current.contains(e.target as Node)) setLegalOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   async function logout() {
     try {
@@ -111,18 +112,19 @@ export default function SiteHeader() {
     }
   }
 
-  // Only show "member badge" when the authenticated user matches membership email
-  const view = useMemo(() => {
-    const isMember = !!ms?.isMember;
+  // Member chip logic:
+  // - only show "Member" if logged in AND membership matches email
+  // - otherwise show "Join"
+  const memberView = useMemo(() => {
     const msEmail = (ms?.email || "").trim().toLowerCase();
     const uEmail = (userEmail || "").trim().toLowerCase();
+
     const emailMatches = !!uEmail && !!msEmail && uEmail === msEmail;
 
-    // If logged out, never show member badge
-    if (!uEmail) return { show: false } as const;
-    if (!emailMatches) return { show: false } as const;
+    if (!uEmail) return { isMember: false, showMember: false };
+    if (!emailMatches) return { isMember: false, showMember: false };
 
-    return { show: true, isMember } as const;
+    return { isMember: !!ms?.isMember, showMember: !!ms?.isMember };
   }, [ms, userEmail]);
 
   return (
@@ -143,6 +145,13 @@ export default function SiteHeader() {
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-6 text-sm text-white/70 md:flex">
+          {/* Account first (only when logged in) */}
+          {userEmail ? (
+            <a className="hover:text-white" href="/account">
+              Account
+            </a>
+          ) : null}
+
           <a className="hover:text-white" href="/browse">
             Browse
           </a>
@@ -153,31 +162,32 @@ export default function SiteHeader() {
             Request a song
           </a>
 
-          {/* Help dropdown */}
-          <div ref={helpRef} className="relative">
+          {/* Legal dropdown */}
+          <div ref={legalRef} className="relative">
             <button
               type="button"
-              onClick={() => setHelpOpen((v) => !v)}
+              onClick={() => setLegalOpen((v) => !v)}
               className="hover:text-white"
+              aria-label="Legal menu"
             >
-              Legal ▾
+              Legal <span className="text-white/60">▾</span>
             </button>
 
-            {helpOpen ? (
+            {legalOpen ? (
               <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl bg-black/90 ring-1 ring-white/15 backdrop-blur">
                 <a
                   href="/dmca"
                   className="block px-4 py-3 text-sm text-white/75 hover:bg-white/10 hover:text-white"
-                  onClick={() => setHelpOpen(false)}
+                  onClick={() => setLegalOpen(false)}
                 >
-                  DMCA takedown
+                  DMCA
                 </a>
                 <a
                   href="/rights-holder"
                   className="block px-4 py-3 text-sm text-white/75 hover:bg-white/10 hover:text-white"
-                  onClick={() => setHelpOpen(false)}
+                  onClick={() => setLegalOpen(false)}
                 >
-                  Rights-holder contact
+                  Rights-holder
                 </a>
               </div>
             ) : null}
@@ -190,10 +200,7 @@ export default function SiteHeader() {
           <button
             type="button"
             className="md:hidden rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-            onClick={() => {
-              setMenuOpen((v) => !v);
-              setHelpOpen(false);
-            }}
+            onClick={() => setMenuOpen((v) => !v)}
             aria-label="Open menu"
           >
             ☰
@@ -201,27 +208,35 @@ export default function SiteHeader() {
 
           <CartIcon />
 
-          {/* Membership badge (member only, no expiry text) */}
-          {view.show && view.isMember ? (
-            <a
-              href="/account"
-              className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-              title="Account"
-            >
-              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-              Member
-            </a>
-          ) : null}
-
-          {/* Auth */}
-          {userEmail ? (
+          {/* ✅ Member status chip (replaces “Account” in right-side area) */}
+          {memberView.showMember ? (
             <a
               href="/account"
               className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              title="Member status"
+            >
+              <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-emerald-400 align-middle" />
+              Member
+            </a>
+          ) : (
+            <a
+              href="/membership"
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              title="Join membership"
+            >
+              Join
+            </a>
+          )}
+
+          {/* Auth */}
+          {userEmail ? (
+            <button
+              onClick={logout}
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
               title={userEmail}
             >
-              Account
-            </a>
+              Log out
+            </button>
           ) : (
             <a
               href="/signin"
@@ -235,9 +250,15 @@ export default function SiteHeader() {
 
       {/* Mobile dropdown */}
       {menuOpen ? (
-        <div className="md:hidden border-t border-white/10 bg-black/0">
+        <div className="md:hidden border-t border-white/10">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
+              {userEmail ? (
+                <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/account">
+                  Account
+                </a>
+              ) : null}
+
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse
               </a>
@@ -248,16 +269,13 @@ export default function SiteHeader() {
                 Request a song
               </a>
 
-              <div className="h-px bg-white/10 my-1" />
-
+              <div className="mt-2 text-xs text-white/50">Legal</div>
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
-                DMCA takedown
+                DMCA
               </a>
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/rights-holder">
-                Rights-holder contact
+                Rights-holder
               </a>
-
-              <div className="h-px bg-white/10 my-1" />
 
               {!userEmail ? (
                 <>
@@ -269,21 +287,16 @@ export default function SiteHeader() {
                   </a>
                 </>
               ) : (
-                <>
-                  <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/account">
-                    Account
-                  </a>
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      logout();
-                    }}
-                    className="text-left hover:text-white"
-                    title={userEmail}
-                  >
-                    Log out
-                  </button>
-                </>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    logout();
+                  }}
+                  className="text-left hover:text-white"
+                  title={userEmail}
+                >
+                  Log out
+                </button>
               )}
             </div>
           </div>
