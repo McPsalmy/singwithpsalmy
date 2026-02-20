@@ -454,7 +454,7 @@ export default function AccountPage() {
               </div>
             ) : null}
 
-            <div className="mt-4 flex flex-wrap gap-2">
+           
               <button
                 disabled={!loggedIn || delBusy}
                 onClick={submitDeleteRequest}
@@ -477,7 +477,7 @@ export default function AccountPage() {
                 Email support (fallback)
               </a>
 
-            </div>
+           
 
             <div className="mt-3 text-xs text-white/55">
               We’ll confirm ownership and process it quickly.
