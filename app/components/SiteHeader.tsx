@@ -279,6 +279,19 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
+              
+              {/* Dashboard visible on mobile too, only when logged in */}
+              {userEmail ? (
+                <a
+                  onClick={() => setMenuOpen(false)}
+                  className="hover:text-white"
+                  href="/dashboard"
+                >
+                  Dashboard
+                </a>
+              ) : null}
+
+
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse
               </a>
@@ -296,17 +309,6 @@ export default function SiteHeader() {
               >
                 Request a song
               </a>
-
-              {/* Dashboard visible on mobile too, only when logged in */}
-              {userEmail ? (
-                <a
-                  onClick={() => setMenuOpen(false)}
-                  className="hover:text-white"
-                  href="/dashboard"
-                >
-                  Dashboard
-                </a>
-              ) : null}
 
               {!userEmail ? (
                 <>
