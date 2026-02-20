@@ -12,6 +12,11 @@ type StatusResp = {
   error?: string;
 };
 
+type DeleteReqResp = {
+  ok: boolean;
+  error?: string;
+};
+
 function fmtDate(iso?: string | null) {
   if (!iso) return "—";
   try {
@@ -41,6 +46,11 @@ export default function AccountPage() {
   const [showP2, setShowP2] = useState(false);
   const [secBusy, setSecBusy] = useState(false);
   const [secMsg, setSecMsg] = useState<string | null>(null);
+
+  // Delete request
+  const [delReason, setDelReason] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -139,6 +149,63 @@ export default function AccountPage() {
     setP2("");
     setSecMsg("✅ Password updated.");
   }
+
+  async function submitDeleteRequest() {
+    setDelMsg(null);
+
+    if (!loggedIn) {
+      setDelMsg("Please log in first.");
+      return;
+    }
+
+    const ok = confirm(
+      "Submit an account deletion request?\n\nThis will notify support. Your account won’t be deleted instantly."
+    );
+    if (!ok) return;
+
+    setDelBusy(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || "";
+
+      if (!token) {
+        setDelBusy(false);
+        setDelMsg("Please log in again.");
+        return;
+      }
+
+      const res = await fetch("/api/public/account/delete-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: delReason.trim() || undefined }),
+      });
+
+      const out = (await res.json().catch(() => null)) as DeleteReqResp | null;
+
+      setDelBusy(false);
+
+      if (!res.ok || !out?.ok) {
+        setDelMsg(out?.error || `Failed (HTTP ${res.status}). You can use email support below.`);
+        return;
+      }
+
+      setDelReason("");
+      setDelMsg("✅ Request submitted. We’ll email you to confirm.");
+    } catch (e: any) {
+      setDelBusy(false);
+      setDelMsg(e?.message || "Request failed. You can use email support below.");
+    }
+  }
+
+  const mailtoHref =
+    "mailto:support@singwithpsalmy.com?subject=Delete%20my%20account&body=" +
+    encodeURIComponent(
+      `Please delete my SingWithPsalmy account.\n\nSigned-in email: ${userEmail ?? ""}\nReason (optional): ${delReason.trim()}\n`
+    );
 
   return (
     <main className="min-h-screen text-white">
@@ -364,16 +431,52 @@ export default function AccountPage() {
           <div className="md:col-span-2 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
             <div className="text-lg font-semibold">Delete account request</div>
             <p className="mt-2 text-sm text-white/65">
-              If you want your account removed, email us from your signed-in email address.
+              Submit a request and we’ll confirm ownership by email before processing.
             </p>
 
+            <div className="mt-4 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
+              <div className="text-xs text-white/60">Reason (optional)</div>
+              <textarea
+                value={delReason}
+                onChange={(e) => setDelReason(e.target.value)}
+                className="mt-2 min-h-[96px] w-full resize-y rounded-xl bg-black/20 p-3 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-white/40"
+                placeholder="Tell us why (optional). Example: I no longer use the service."
+                maxLength={1000}
+              />
+              <div className="mt-2 text-xs text-white/50">
+                This does not delete instantly — it creates a support request.
+              </div>
+            </div>
+
+            {delMsg ? (
+              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+                {delMsg}
+              </div>
+            ) : null}
+
             <div className="mt-4 flex flex-wrap gap-2">
-              <a
-                href="mailto:support@singwithpsalmy.com?subject=Delete%20my%20account&body=Please%20delete%20my%20SingWithPsalmy%20account.%0A%0ASigned-in%20email%3A%20"
-                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+              <button
+                disabled={!loggedIn || delBusy}
+                onClick={submitDeleteRequest}
+                className={[
+                  "rounded-2xl px-5 py-3 text-sm font-semibold ring-1",
+                  !loggedIn || delBusy
+                    ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
+                    : "bg-red-500/20 text-white ring-red-400/20 hover:bg-red-500/30",
+                ].join(" ")}
+                title={!loggedIn ? "Log in to submit a request" : "Submit delete request"}
               >
-                Email support
+                {delBusy ? "Submitting..." : "Submit delete request"}
+              </button>
+
+              <a
+                href={mailtoHref}
+                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                title="Fallback: email support"
+              >
+                Email support (fallback)
               </a>
+
               <a
                 href="/dmca"
                 className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
@@ -382,7 +485,9 @@ export default function AccountPage() {
               </a>
             </div>
 
-            <div className="mt-3 text-xs text-white/55">We’ll confirm ownership and process it quickly.</div>
+            <div className="mt-3 text-xs text-white/55">
+              We’ll confirm ownership and process it quickly.
+            </div>
           </div>
         </div>
       </section>
