@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseClient } from "../lib/supabaseClient";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
+type MemberStatus = {
+  ok: boolean;
+  isMember: boolean;
+  email?: string;
+  expires_at?: string | null;
+  plan?: string | null;
+  error?: string;
+};
+
 export default function RequestPage() {
   const [isMember, setIsMember] = useState(false);
   const [memberEmail, setMemberEmail] = useState<string>("");
@@ -17,12 +26,16 @@ export default function RequestPage() {
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(true);
 
+  // for clearer UX
+  const [loggedIn, setLoggedIn] = useState(false);
+
   const canSubmit = useMemo(() => {
+    if (!loggedIn) return false;
     if (!isMember) return false;
     if (!email.trim()) return false;
     if (!songTitle.trim()) return false;
     return true;
-  }, [isMember, email, songTitle]);
+  }, [loggedIn, isMember, email, songTitle]);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,13 +47,28 @@ export default function RequestPage() {
         const supabase = supabaseAuthClient();
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData?.session?.access_token || "";
+        const uEmail = sessionData?.session?.user?.email || "";
 
+        // ✅ Strict gate: if logged out, ALWAYS block request page
+        if (!token) {
+          if (cancelled) return;
+          setLoggedIn(false);
+          setIsMember(false);
+          setMemberEmail("");
+          setEmail("");
+          return;
+        }
+
+        if (cancelled) return;
+        setLoggedIn(true);
+
+        // ✅ Authoritative membership check only (Bearer token)
         const res = await fetch("/api/public/membership/status", {
           cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        const out = await res.json().catch(() => ({}));
+        const out = (await res.json().catch(() => ({}))) as MemberStatus;
 
         if (cancelled) return;
 
@@ -48,15 +76,21 @@ export default function RequestPage() {
           console.error(out);
           setIsMember(false);
           setMemberEmail("");
+          // still keep loggedIn true
+          // prefill from auth email so user sees what to use
+          if (uEmail) setEmail(uEmail);
           return;
         }
 
-        setIsMember(!!out?.isMember);
-        const e = String(out?.email || "");
+        const member = !!out.isMember;
+        const e = String(out.email || uEmail || "").trim();
+
+        setIsMember(member);
         setMemberEmail(e);
 
-        // Prefill email input for members
-        if (out?.isMember && e) setEmail(e);
+        // Prefill email input ONLY when they are a member (since it’s members-only)
+        if (member && e) setEmail(e);
+        else if (uEmail) setEmail(uEmail);
       } finally {
         if (!cancelled) setChecking(false);
       }
@@ -74,7 +108,6 @@ export default function RequestPage() {
       setBusy(true);
 
       const supabase = supabaseClient();
-
       const { error } = await supabase.from("song_requests").insert([
         {
           email: email.trim(),
@@ -102,13 +135,16 @@ export default function RequestPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <section className="mx-auto max-w-3xl px-5 py-12">
+      <section className="mx-auto max-w-3xl px-5 py-10">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <a href="/membership" className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white">
+            <a
+              href="/membership"
+              className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white"
+            >
               <span aria-hidden>←</span> Back to membership
             </a>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight">Song request</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Song request</h1>
             <p className="mt-2 text-sm text-white/65">
               Active members can request karaoke practice tracks we don’t have yet.
             </p>
@@ -123,14 +159,37 @@ export default function RequestPage() {
         </div>
 
         {checking ? (
-          <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-            <div className="text-sm text-white/70">Checking membership…</div>
+          <div className="mt-6 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+            <div className="text-sm text-white/70">Checking access…</div>
+          </div>
+        ) : !loggedIn ? (
+          <div className="mt-6 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+            <div className="text-lg font-semibold">Log in required</div>
+            <p className="mt-2 text-sm text-white/65">
+              Song requests are a members-only feature. Please log in to confirm your membership.
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <a
+                href="/signin"
+                className="inline-block rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                Log in
+              </a>
+              <a
+                href="/membership"
+                className="inline-block rounded-2xl bg-white/10 px-5 py-3 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              >
+                View membership plans
+              </a>
+            </div>
           </div>
         ) : !isMember ? (
-          <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+          <div className="mt-6 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
             <div className="text-lg font-semibold">Members-only feature</div>
             <p className="mt-2 text-sm text-white/65">
-              Song requests are available to active members. Join membership to unlock requests and full access.
+              We couldn’t find an active membership for your logged-in account.
+              Join membership to unlock requests and full access.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -138,22 +197,22 @@ export default function RequestPage() {
                 href="/membership"
                 className="inline-block rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
               >
-                View membership plans
+                Join membership
               </a>
               <a
-                href="/browse"
+                href="/account"
                 className="inline-block rounded-2xl bg-white/10 px-5 py-3 text-sm ring-1 ring-white/15 hover:bg-white/15"
               >
-                Browse catalogue
+                Go to account
               </a>
             </div>
           </div>
         ) : (
-          <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+          <div className="mt-6 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
             <div className="text-sm font-semibold">Request details</div>
 
             {memberEmail ? (
-              <div className="mt-3 text-xs text-white/55">
+              <div className="mt-2 text-xs text-white/55">
                 Member email: <span className="text-white">{memberEmail}</span>
               </div>
             ) : null}

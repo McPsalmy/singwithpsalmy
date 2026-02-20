@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 function getSiteUrl() {
@@ -18,6 +18,20 @@ function looksUnconfirmedEmail(errMsg: string) {
   );
 }
 
+// ✅ Supports /signin?next=/somewhere
+function getNextPath() {
+  if (typeof window === "undefined") return "/account";
+  try {
+    const u = new URL(window.location.href);
+    const next = (u.searchParams.get("next") || "").trim();
+    // only allow internal paths to avoid open-redirect issues
+    if (next.startsWith("/")) return next;
+  } catch {
+    // ignore
+  }
+  return "/account";
+}
+
 export default function SignInPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
   const [mode, setMode] = useState<"password" | "magic">("password");
@@ -33,6 +47,16 @@ export default function SignInPage() {
   // When we detect “email not confirmed”
   const [needsConfirm, setNeedsConfirm] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
+
+  // ✅ Prefill email if we have it (membership flow often stores swp_email)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("swp_email") || "";
+      if (saved && saved.includes("@")) setEmail(saved);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   async function signInPassword(e: React.FormEvent) {
     e.preventDefault();
@@ -56,8 +80,8 @@ export default function SignInPage() {
       return;
     }
 
-    // ✅ go to Account (settings / membership view)
-    window.location.href = "/account";
+    // ✅ go to next or Account
+    window.location.href = getNextPath();
   }
 
   async function sendMagicLink(e: React.FormEvent) {
@@ -72,8 +96,8 @@ export default function SignInPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email: eemail,
       options: {
-        // ✅ when they click the email link, land on Account
-        emailRedirectTo: `${siteUrl}/account`,
+        // ✅ when they click the email link, land on next or Account
+        emailRedirectTo: `${siteUrl}${getNextPath()}`,
       },
     });
 
@@ -105,8 +129,8 @@ export default function SignInPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email: eemail,
         options: {
-          // ✅ confirmation/sign-in path sends them to Account
-          emailRedirectTo: `${siteUrl}/account`,
+          // ✅ confirmation/sign-in path sends them to next or Account
+          emailRedirectTo: `${siteUrl}${getNextPath()}`,
         },
       });
 
@@ -261,6 +285,7 @@ export default function SignInPage() {
             {busy ? "Working..." : mode === "password" ? "Log in" : "Send link"}
           </button>
 
+          {/* Email confirmation helper */}
           {needsConfirm ? (
             <div className="mt-4 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm ring-1 ring-amber-400/20">
               <div className="font-semibold text-amber-200">Email not confirmed</div>

@@ -5,6 +5,14 @@ import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 
+function noStoreJson(payload: any, init?: { status?: number }) {
+  const res = NextResponse.json(payload, init);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
+
 export async function GET(req: Request) {
   try {
     const cookieStore = await cookies();
@@ -14,32 +22,35 @@ export async function GET(req: Request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return NextResponse.json(
-        { ok: false, error: "Missing Supabase env vars" },
-        { status: 500 }
-      );
+      return noStoreJson({ ok: false, error: "Missing Supabase env vars" }, { status: 500 });
     }
 
     // Collect any cookie changes Supabase Auth wants to make (session refresh, etc.)
     const pendingCookies: Array<{ name: string; value: string; options: any }> = [];
     const pendingRemovals: Array<{ name: string; options: any }> = [];
 
-    // 0) If client sends Authorization: Bearer <token>, use that first (most reliable)
+    // ✅ Identity source:
+    // 1) Authorization Bearer token (authoritative)
+    // 2) Supabase Auth cookies (server session)
+    // ❌ No legacy swp_member cookies allowed (prevents sticky member state)
     let email = "";
+
     const authHeader = req.headers.get("authorization") || "";
     const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
 
+    // 1) Bearer token path
     if (bearer) {
       const tokenClient = createClient(supabaseUrl, anonKey, {
         auth: { persistSession: false },
       });
+
       const { data, error } = await tokenClient.auth.getUser(bearer);
       if (!error) {
         email = (data?.user?.email || "").trim().toLowerCase();
       }
     }
 
-    // 1) Try Supabase Auth cookies next (server session)
+    // 2) Supabase Auth cookie session path
     if (!email) {
       try {
         const supaAuth = createServerClient(supabaseUrl, anonKey, {
@@ -59,34 +70,27 @@ export async function GET(req: Request) {
         const { data } = await supaAuth.auth.getUser();
         email = (data?.user?.email || "").trim().toLowerCase();
       } catch {
-        // ignore and fall back
+        // ignore
       }
     }
 
-    // 2) Fallback to existing membership cookies (legacy path)
+    // If still no email, user is not authenticated -> NOT a member for UI gating.
     if (!email) {
-      const memberFlag = cookieStore.get("swp_member")?.value === "1";
-      const cookieEmail = (cookieStore.get("swp_member_email")?.value || "")
-        .trim()
-        .toLowerCase();
+      const res = noStoreJson({ ok: true, isMember: false });
 
-      if (memberFlag && cookieEmail) {
-        email = cookieEmail;
-      }
-    }
-
-    // If still no email, user is not logged in / not a member
-    if (!email) {
-      const noMemberRes = NextResponse.json({ ok: true, isMember: false });
-
+      // Apply any Supabase cookie refresh/removals
       for (const c of pendingCookies) {
-        noMemberRes.cookies.set({ name: c.name, value: c.value, ...c.options });
+        res.cookies.set({ name: c.name, value: c.value, ...c.options });
       }
       for (const r of pendingRemovals) {
-        noMemberRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
+        res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
       }
 
-      return noMemberRes;
+      // ✅ Hard clear legacy cookies so the UI never "sticks" after logout
+      res.cookies.set("swp_member", "", { path: "/", maxAge: 0 });
+      res.cookies.set("swp_member_email", "", { path: "/", maxAge: 0 });
+
+      return res;
     }
 
     // Service-role client for DB membership lookup
@@ -102,7 +106,7 @@ export async function GET(req: Request) {
       .limit(1);
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return noStoreJson({ ok: false, error: error.message }, { status: 500 });
     }
 
     const row = data?.[0];
@@ -117,41 +121,22 @@ export async function GET(req: Request) {
       plan: row?.plan ?? null,
     };
 
-    const finalRes = NextResponse.json(payload);
+    const res = noStoreJson(payload);
 
+    // Apply any Supabase cookie refresh/removals
     for (const c of pendingCookies) {
-      finalRes.cookies.set({ name: c.name, value: c.value, ...c.options });
+      res.cookies.set({ name: c.name, value: c.value, ...c.options });
     }
     for (const r of pendingRemovals) {
-      finalRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
+      res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
     }
 
-    // Keep legacy cookies in sync for compatibility
-    if (isActive) {
-      finalRes.cookies.set("swp_member", "1", {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        secure: true,
-        maxAge: 60 * 60 * 24 * 30,
-      });
-      finalRes.cookies.set("swp_member_email", email, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        secure: true,
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    } else {
-      finalRes.cookies.set("swp_member", "", { path: "/", maxAge: 0 });
-      finalRes.cookies.set("swp_member_email", "", { path: "/", maxAge: 0 });
-    }
+    // ✅ Always clear legacy cookies (we are officially not using them anymore)
+    res.cookies.set("swp_member", "", { path: "/", maxAge: 0 });
+    res.cookies.set("swp_member_email", "", { path: "/", maxAge: 0 });
 
-    return finalRes;
+    return res;
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unknown error" },
-      { status: 500 }
-    );
+    return noStoreJson({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }
 }
