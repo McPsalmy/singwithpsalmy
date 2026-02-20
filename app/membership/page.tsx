@@ -200,7 +200,7 @@ export default function MembershipPage() {
           <h1 className="text-4xl font-semibold tracking-tight text-center">Membership</h1>
 
           <p className="mt-3 text-base leading-relaxed text-white/70 text-center">
-            Members get access to the full song catalog and all available versions while their
+            Members get access to the full song catalog while their
             membership is active.
           </p>
 
