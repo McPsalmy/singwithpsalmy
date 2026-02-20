@@ -1,3 +1,4 @@
+// C:\Users\Psalmy\SingWithPsalmy\app\admin\tracks\new\page.tsx
 "use client";
 
 import { useState } from "react";
@@ -13,10 +14,6 @@ export default function NewTrackPage() {
     null
   );
 
-  // Debug helpers (we'll remove later)
-  const [debug, setDebug] = useState<string>("");
-  const [lastOut, setLastOut] = useState<any>(null);
-
   async function submit() {
     const cleanTitle = title.trim();
     if (!cleanTitle) {
@@ -26,8 +23,6 @@ export default function NewTrackPage() {
 
     try {
       setBusy(true);
-      setDebug("submit() started");
-      setLastOut(null);
 
       const res = await fetch("/api/admin/tracks/create", {
         method: "POST",
@@ -39,12 +34,9 @@ export default function NewTrackPage() {
       });
 
       const out = await res.json().catch(() => ({}));
-      setDebug(`response status: ${res.status}`);
-      setLastOut(out);
 
       if (!res.ok || !out?.ok) {
         console.error("Create track failed:", out);
-        setDebug("Create failed (see lastOut)");
         alert(out?.error || "Could not create track (server error).");
         return;
       }
@@ -53,17 +45,15 @@ export default function NewTrackPage() {
       const slug = String(out?.slug || "");
 
       if (!id || !slug) {
-        setDebug("Create succeeded but response missing id/slug (see lastOut)");
-        alert("Created, but missing id/slug in response. See debug panel.");
+        console.error("Create succeeded but missing id/slug:", out);
+        alert("Created, but response missing id/slug. Check server logs.");
         return;
       }
 
       setCreated({ id, slug });
-      setDebug("Created state set ✓");
     } catch (err: any) {
       console.error("Create track exception:", err);
-      setDebug(`Exception: ${err?.message || "unknown"}`);
-      alert("Could not reach the server. Make sure npm run dev is running.");
+      alert("Could not reach the server. Make sure the app is running.");
     } finally {
       setBusy(false);
     }
@@ -78,25 +68,6 @@ export default function NewTrackPage() {
             Create a catalogue entry (title → slug generated automatically), then
             upload the 6 MP4 files.
           </p>
-
-          {/* Debug panel (temporary) */}
-          <div className="mt-4 rounded-2xl bg-white/5 p-4 text-xs text-white/70 ring-1 ring-white/10">
-            <div>
-              debug: <span className="text-white/90">{debug || "(empty)"}</span>
-            </div>
-            <div className="mt-2">
-              created:{" "}
-              <span className="text-white/90">
-                {created ? JSON.stringify(created) : "null"}
-              </span>
-            </div>
-            <div className="mt-2 break-all">
-              lastOut:{" "}
-              <span className="text-white/90">
-                {lastOut ? JSON.stringify(lastOut) : "null"}
-              </span>
-            </div>
-          </div>
 
           <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
             <div className="grid gap-4">
