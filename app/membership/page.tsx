@@ -42,6 +42,15 @@ const plans = [
   },
 ];
 
+type MembershipStatus = {
+  ok: boolean;
+  isMember: boolean;
+  email?: string;
+  expires_at?: string | null;
+  plan?: string | null;
+  error?: string;
+};
+
 function formatNaira(n: number) {
   return `₦${n.toLocaleString("en-NG")}`;
 }
@@ -60,32 +69,44 @@ function fmtDate(iso: string) {
   }
 }
 
-type MembershipStatus = {
-  ok: boolean;
-  isMember: boolean;
-  email?: string;
-  expires_at?: string | null;
-  plan?: string | null;
-  error?: string;
-};
-
 export default function MembershipPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
 
-  const [busyPlan, setBusyPlan] = useState<string | null>(null);
-
-  const [showEmail, setShowEmail] = useState(false);
-  const [email, setEmail] = useState("");
-  const [planToBuy, setPlanToBuy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Membership banner
   const [checking, setChecking] = useState(true);
   const [ms, setMs] = useState<MembershipStatus | null>(null);
 
-  // Load membership status from server
-  // - Uses Bearer token when logged-in (authoritative)
-  // - Falls back to legacy cookies when logged-out
+  // modal
+  const [showEmail, setShowEmail] = useState(false);
+  const [email, setEmail] = useState("");
+  const [planToBuy, setPlanToBuy] = useState<string | null>(null);
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // ✅ Fix: After cancelling Paystack and coming "back", React state can restore as busy/unresponsive.
+  // Reset busy flags when page becomes visible again (bfcache/back button).
+  useEffect(() => {
+    function resetInteractiveState() {
+      setBusyPlan(null);
+      // keep email filled, but ensure UI is clickable again
+    }
+
+    const onPageShow = () => resetInteractiveState();
+    const onVis = () => {
+      if (!document.hidden) resetInteractiveState();
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  // ✅ Membership status:
+  // - ONLY show "active" when logged-in with a token.
+  // - Logged-out users see a neutral banner (prevents stale "active" from cookies/previous session).
   useEffect(() => {
     let alive = true;
 
@@ -96,9 +117,19 @@ export default function MembershipPage() {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData?.session?.access_token || "";
 
+        // logged out: do NOT call membership status endpoint (it may read legacy cookies)
+        if (!token) {
+          if (!alive) return;
+          setMs({ ok: true, isMember: false });
+          // prefill from local for convenience (optional)
+          const saved = localStorage.getItem("swp_email") || "";
+          if (saved) setEmail(saved);
+          return;
+        }
+
         const res = await fetch("/api/public/membership/status", {
           cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         const out = (await res.json().catch(() => ({}))) as MembershipStatus;
@@ -113,9 +144,6 @@ export default function MembershipPage() {
 
         setMs(out);
 
-        // Prefill email:
-        // 1) membership email if present
-        // 2) saved email (walk-in)
         const e = String(out?.email || "").trim();
         if (e) {
           setEmail(e);
@@ -136,9 +164,31 @@ export default function MembershipPage() {
 
   const banner = useMemo(() => {
     if (checking) return null;
-    if (!ms?.ok) return null;
 
-    if (ms.isMember) {
+    // If membership fetch errored
+    if (ms && !ms.ok) {
+      return {
+        tone: "warn" as const,
+        title: "Could not check membership",
+        body: ms.error || "Please try again.",
+      };
+    }
+
+    // If logged-out (we set ms ok + isMember false)
+    // Show neutral message instead of "inactive"
+    const { data: sessionData } = { data: null as any };
+    // We can't read token here without re-requesting; so infer:
+    // If ms.ok true and ms.email missing and isMember false => treat as logged-out banner.
+    if (ms?.ok && !ms.email && !ms.isMember) {
+      return {
+        tone: "neutral" as const,
+        title: "Membership status",
+        body: "Log in to see your membership status and expiry date.",
+      };
+    }
+
+    // Logged-in + member
+    if (ms?.ok && ms.isMember) {
       return {
         tone: "good" as const,
         title: "Membership active",
@@ -146,15 +196,7 @@ export default function MembershipPage() {
       };
     }
 
-    // Not member (or expired)
-    if (ms.email && ms.expires_at) {
-      return {
-        tone: "warn" as const,
-        title: "Membership inactive",
-        body: `No active membership found for ${ms.email}.`,
-      };
-    }
-
+    // Logged-in + not member
     return {
       tone: "warn" as const,
       title: "No active membership",
@@ -164,7 +206,7 @@ export default function MembershipPage() {
 
   function startPlan(planName: string) {
     setError(null);
-    setPlanToBuy(planName.toLowerCase()); // bronze/silver/gold/platinum
+    setPlanToBuy(planName.toLowerCase());
     setShowEmail(true);
   }
 
@@ -203,6 +245,7 @@ export default function MembershipPage() {
         return;
       }
 
+      // Redirect to Paystack
       window.location.href = out.authorization_url;
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
@@ -212,50 +255,51 @@ export default function MembershipPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <section className="mx-auto max-w-6xl px-5 py-12 text-center">
-        {/* Top */}
-        <div className="mx-auto max-w-2xl">
-          <a
-            href="/"
-            className="inline-flex items-center justify-center gap-2 text-xs text-white/60 hover:text-white"
-          >
+      <section className="mx-auto max-w-6xl px-5 py-10">
+        {/* Title (center) */}
+        <div className="mx-auto max-w-2xl text-center">
+          <a href="/" className="inline-flex items-center justify-center gap-2 text-xs text-white/60 hover:text-white">
             <span aria-hidden>←</span> Home
           </a>
 
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight">Membership</h1>
+          <h1 className="mt-2 text-4xl font-semibold tracking-tight">Membership</h1>
 
-          <p className="mx-auto mt-1 max-w-xl text-base leading-relaxed text-white/70">
+          <p className="mt-2 text-sm leading-relaxed text-white/70">
             Members get access to the full song catalog while their membership is active.
           </p>
 
-          {/* Membership status banner */}
+          {/* Banner */}
           {banner ? (
             <div
               className={[
-                "mt-6 rounded-3xl p-4 ring-1",
+                "mt-4 rounded-3xl p-3 ring-1",
                 banner.tone === "good"
                   ? "bg-emerald-500/10 ring-emerald-400/20"
+                  : banner.tone === "neutral"
+                  ? "bg-white/5 ring-white/10"
                   : "bg-white/5 ring-white/10",
               ].join(" ")}
             >
               <div className="text-sm font-semibold">{banner.title}</div>
               <div className="mt-1 text-sm text-white/70">{banner.body}</div>
+
+              {/* If logged in, show email */}
               {ms?.email ? (
-                <div className="mt-1 text-xs text-white/55">
+                <div className="mt-2 text-xs text-white/55">
                   Email: <span className="text-white">{ms.email}</span>
                 </div>
               ) : null}
 
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
                 <a
                   href="/account"
-                  className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                  className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
                 >
-                  Go to account
+                  Account
                 </a>
                 <a
                   href="/browse"
-                  className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                  className="rounded-2xl bg-white/10 px-4 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
                 >
                   Browse songs
                 </a>
@@ -263,32 +307,17 @@ export default function MembershipPage() {
             </div>
           ) : null}
 
-          {/* Single-track purchase note */}
-          <div className="mt-4 rounded-xl bg-white/5 p-5 ring-1 ring-white/10">
-            <div className="text-sm font-semibold">Prefer single-track purchase?</div>
-            <p className="mt-3 text-sm text-white/70">
-              Buy any version of a track for a flat{" "}
-              <span className="font-semibold text-white">₦700</span>.
+          {/* Single-purchase note (tighter spacing) */}
+          <div className="mt-4 rounded-3xl bg-white/5 p-4 ring-1 ring-white/10">
+            <div className="text-sm font-semibold">Single-track purchase</div>
+            <p className="mt-1 text-sm text-white/70">
+              Buy any version of a track for a flat <span className="font-semibold text-white">₦700</span>.
             </p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <a
-                href="/browse"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Browse songs
-              </a>
-              <a
-                href="/cart"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
-              >
-                View cart
-              </a>
-            </div>
           </div>
         </div>
 
         {/* Plans */}
-        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {plans.map((p) => {
             const total = p.pricePerMonth * p.months;
             const planKey = p.name.toLowerCase();
@@ -297,38 +326,39 @@ export default function MembershipPage() {
               <div
                 key={p.name}
                 className={[
-                  "relative rounded-3xl p-6 ring-1 text-center overflow-hidden",
+                  "relative overflow-hidden rounded-3xl p-5 ring-1",
                   p.highlight ? "bg-transparent ring-white/20" : "bg-transparent ring-white/10",
                 ].join(" ")}
               >
                 <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${p.accent}`} />
 
-                {p.discountPct > 0 && (
-                  <div className="absolute right-5 top-5 rounded-full bg-white/10 px-3 py-1 text-xs text-white/80 ring-1 ring-white/15">
+                {p.discountPct > 0 ? (
+                  <div className="absolute right-4 top-4 rounded-full bg-white/10 px-3 py-1 text-xs text-white/80 ring-1 ring-white/15">
                     Save {p.discountPct}%
                   </div>
-                )}
+                ) : null}
 
-                <div className="relative">
+                <div className="relative text-center">
                   <div className="text-sm text-white/60">{p.name}</div>
-                  <div className="mt-2 text-3xl font-semibold tracking-tight">
+
+                  <div className="mt-1 text-3xl font-semibold tracking-tight">
                     {formatNaira(p.pricePerMonth)}
                     <span className="text-sm font-normal text-white/60"> / month</span>
                   </div>
 
-                  <p className="mx-auto mt-2 max-w-[18rem] text-sm text-white/70">{p.tagline}</p>
+                  <p className="mt-2 text-sm text-white/70">{p.tagline}</p>
 
-                  <div className="mx-auto mt-6 max-w-[18rem] rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
+                  <div className="mx-auto mt-4 rounded-2xl bg-black/30 p-3 ring-1 ring-white/10">
                     <div className="text-xs text-white/60">Billed today</div>
                     <div className="mt-1 text-sm font-semibold">
                       {p.months === 1 ? formatNaira(p.pricePerMonth) : formatNaira(total)}
-                      {p.months > 1 && (
+                      {p.months > 1 ? (
                         <span className="text-xs font-normal text-white/60"> (covers {p.months} months)</span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
-                  <ul className="mx-auto mt-6 max-w-[18rem] space-y-3 text-sm text-white/70 text-left">
+                  <ul className="mx-auto mt-4 space-y-2 text-left text-sm text-white/70">
                     <li className="flex gap-2">
                       <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
                       Full catalog access while active
@@ -351,19 +381,15 @@ export default function MembershipPage() {
                     onClick={() => startPlan(p.name)}
                     disabled={busyPlan !== null}
                     className={[
-                      "mt-8 w-full rounded-2xl px-5 py-3 text-sm font-semibold",
+                      "mt-5 w-full rounded-2xl px-5 py-3 text-sm font-semibold",
                       busyPlan ? "bg-white/60 text-black cursor-not-allowed" : "bg-white text-black hover:bg-white/90",
                     ].join(" ")}
                   >
-                    {busyPlan === planKey
-                      ? "Redirecting..."
-                      : ms?.isMember
-                      ? `Renew with ${p.name}`
-                      : `Choose ${p.name}`}
+                    {busyPlan === planKey ? "Redirecting..." : `Choose ${p.name}`}
                   </button>
 
-                  <p className="mt-3 text-xs text-white/55">
-                    You’ll get access immediately after successful payment.
+                  <p className="mt-2 text-xs text-white/55">
+                    Access unlocks immediately after successful payment.
                   </p>
                 </div>
               </div>
@@ -371,37 +397,34 @@ export default function MembershipPage() {
           })}
         </div>
 
-        {/* Member benefit block */}
-        <div className="mt-6 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 text-center">
-          <div className="mx-auto max-w-3xl">
-            <div className="text-xs text-white/60">Member benefit</div>
-            <h2 className="mt-3 text-xl font-semibold tracking-tight">Request songs not in the catalogue</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm text-white/70">
-              Active members can request karaoke practice tracks. We’ll create and upload them
-              for you.
-            </p>
+        {/* Benefit block (center) */}
+        <div className="mt-8 rounded-3xl bg-white/5 p-3 ring-1 ring-white/10 text-center">
+          <div className="text-xs text-white/60">Member benefit</div>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight">Request songs not in the catalogue</h2>
+          <p className="mt-1 text-sm text-white/70">
+            Active members can request karaoke practice tracks. We’ll create and upload them for you.
+          </p>
 
-            <div className="mt-3 flex flex-wrap justify-center gap-3">
-              <a
-                href="/request"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-center font-semibold ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Request a song
-              </a>
-              <a
-                href="/browse"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-center font-semibold ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Browse catalogue
-              </a>
-            </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <a
+              href="/request"
+              className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Request a song
+            </a>
+            <a
+              href="/browse"
+              className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Browse catalogue
+            </a>
           </div>
         </div>
 
-        {/* FAQs */}
-        <div className="mt-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-          <h2 className="text-lg text-center font-semibold">Membership FAQs</h2>
-          <div className="mx-auto mt-3 max-w-2xl space-y-3 text-sm text-white/70">
+        {/* FAQ (left aligned as requested) */}
+        <div className="mt-8 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+          <h2 className="text-lg font-semibold">Membership FAQs</h2>
+          <div className="mt-3 space-y-3 text-left text-sm text-white/70">
             <p>
               <span className="font-semibold text-white">Does it auto-renew?</span>{" "}
               Not yet. For now, you renew manually when your membership expires.
@@ -412,22 +435,22 @@ export default function MembershipPage() {
             </p>
             <p>
               <span className="font-semibold text-white">Do I need an account?</span>{" "}
-              No for single purchases. Accounts are mainly for members so we can recognize your membership email.
+              No for single purchases. Accounts help us recognize your membership email reliably.
             </p>
           </div>
         </div>
       </section>
 
       {/* Email Modal */}
-      {showEmail && (
+      {showEmail ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5">
-          <div className="w-full max-w-md rounded-3xl bg-[#0b0b0b] p-6 ring-1 ring-white/15 text-center">
+          <div className="w-full max-w-md rounded-3xl bg-[#0b0b0b] p-5 ring-1 ring-white/15">
             <div className="text-lg font-semibold">Membership email</div>
             <p className="mt-1 text-sm text-white/70">
               Enter the email address that will be used for membership access.
             </p>
 
-            <div className="mt-5 text-left">
+            <div className="mt-4">
               <label className="text-xs text-white/70">Email</label>
               <input
                 value={email}
@@ -438,12 +461,12 @@ export default function MembershipPage() {
             </div>
 
             {error ? (
-              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15 text-left">
+              <div className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
                 ❌ {error}
               </div>
             ) : null}
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="mt-5 grid grid-cols-2 gap-3">
               <button
                 onClick={closeModal}
                 disabled={!!busyPlan}
@@ -457,12 +480,16 @@ export default function MembershipPage() {
                 disabled={!!busyPlan}
                 className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90 disabled:opacity-60"
               >
-                Continue
+                {busyPlan ? "Working..." : "Continue"}
               </button>
             </div>
+
+            <p className="mt-3 text-xs text-white/55">
+              Use the same email you’ll log in with on your account page.
+            </p>
           </div>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }
