@@ -1,4 +1,3 @@
-import SiteHeader from "../components/SiteHeader";
 import AdminGate from "../components/AdminGate";
 
 
@@ -6,8 +5,6 @@ export default function PsalmyHomePage() {
   return (
   <AdminGate>
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-4xl px-5 py-12">
         <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-2 text-sm text-white/65">

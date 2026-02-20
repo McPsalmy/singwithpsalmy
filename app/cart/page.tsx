@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import CoverTile from "../components/CoverTile";
 
 type CartItem = {
@@ -49,8 +48,6 @@ export default function CartPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-6xl px-5 py-12">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 export default function UpdatePasswordPage() {
@@ -60,8 +59,6 @@ export default function UpdatePasswordPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-md px-5 py-14">
         <h1 className="text-3xl font-semibold tracking-tight">Set a new password</h1>
 

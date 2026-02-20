@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import SiteHeader from "../../../components/SiteHeader";
 import AdminGate from "../../../components/AdminGate";
 
 type TrackRow = {
@@ -206,8 +205,6 @@ export default function AdminTrackDetailPage() {
   return (
     <AdminGate>
       <main className="min-h-screen text-white">
-        <SiteHeader />
-
         <section className="mx-auto max-w-4xl px-5 py-12">
           <div className="flex items-start justify-between gap-4">
             <div>

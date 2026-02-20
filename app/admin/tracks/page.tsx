@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import SiteHeader from "../../components/SiteHeader";
 import AdminGate from "../../components/AdminGate";
 
 
@@ -52,8 +51,6 @@ export default function AdminTracksPage() {
   return (
     <AdminGate>
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-6xl px-5 py-12">
         <a
   href="/psalmy"

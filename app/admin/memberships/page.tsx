@@ -2,7 +2,6 @@
 
 export const dynamic = "force-dynamic";
 import { useEffect, useMemo, useState } from "react";
-import SiteHeader from "../../components/SiteHeader";
 import AdminGate from "../../components/AdminGate";
 
 type MembershipRow = {
@@ -138,8 +137,6 @@ export default function AdminMembershipsPage() {
   return (
     <AdminGate>
       <main className="min-h-screen text-white">
-        <SiteHeader />
-
         <section className="mx-auto max-w-5xl px-5 py-12">
           <a
             href="/psalmy"

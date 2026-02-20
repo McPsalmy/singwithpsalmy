@@ -1,11 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
+
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://singwithpsalmy.com"
+  );
+}
 
 export default function SignUpPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -38,18 +45,21 @@ export default function SignUpPage() {
 
     setBusy(true);
 
+    const siteUrl = getSiteUrl();
+
     const { error } = await supabase.auth.signUp({
       email: eaddr,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/membership`,
+        // After email confirmation, route them into the app (Account page)
+        emailRedirectTo: `${siteUrl}/account`,
       },
     });
 
     setBusy(false);
 
     if (error) {
-      setMsg(error.message);
+      setMsg(error.message || "Could not create account.");
       return;
     }
 
@@ -58,10 +68,17 @@ export default function SignUpPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-md px-5 py-14">
-        <h1 className="text-3xl font-semibold tracking-tight">Create account</h1>
+        <a
+          href="/signin"
+          className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white"
+        >
+          <span aria-hidden>←</span> Back to sign in
+        </a>
+
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+          Create account
+        </h1>
         <p className="mt-2 text-sm text-white/70">
           Create an account to manage membership and access premium features.
         </p>
@@ -75,8 +92,9 @@ export default function SignUpPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
-            className="mt-2 w-full rounded-xl bg-black/40 px-4 py-3 text-sm text-white ring-1 ring-white/15 outline-none"
+            className="mt-2 w-full rounded-xl bg-black/40 px-4 py-3 text-sm text-white ring-1 ring-white/15 outline-none placeholder:text-white/40"
             placeholder="you@example.com"
+            autoComplete="email"
             required
           />
 
@@ -86,8 +104,9 @@ export default function SignUpPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type={showPass ? "text" : "password"}
-              className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+              className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none placeholder:text-white/40"
               placeholder="Create a password"
+              autoComplete="new-password"
               required
             />
             <button
@@ -100,14 +119,17 @@ export default function SignUpPage() {
             </button>
           </div>
 
-          <label className="mt-4 block text-sm text-white/80">Confirm password</label>
+          <label className="mt-4 block text-sm text-white/80">
+            Confirm password
+          </label>
           <div className="relative mt-2">
             <input
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               type={showConfirm ? "text" : "password"}
-              className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none"
+              className="w-full rounded-xl bg-black/40 px-4 py-3 pr-12 text-sm text-white ring-1 ring-white/15 outline-none placeholder:text-white/40"
               placeholder="Re-enter password"
+              autoComplete="new-password"
               required
             />
             <button
@@ -124,7 +146,9 @@ export default function SignUpPage() {
             disabled={busy}
             className={[
               "mt-6 w-full rounded-2xl px-4 py-3 text-sm font-semibold",
-              busy ? "bg-white/10 text-white/70" : "bg-white text-black hover:bg-white/90",
+              busy
+                ? "bg-white/10 text-white/70 ring-1 ring-white/10"
+                : "bg-white text-black hover:bg-white/90",
             ].join(" ")}
           >
             {busy ? "Working..." : "Create account"}
@@ -145,9 +169,17 @@ export default function SignUpPage() {
           </div>
         </form>
 
-        <p className="mt-6 text-xs text-center text-white/55">
-          You don’t need an account to purchase karaoke videos — accounts are mainly for members.
-        </p>
+        <div className="mt-6 rounded-2xl bg-white/5 p-4 text-center text-xs text-white/60 ring-1 ring-white/10">
+          <div className="text-white/80">Quick note</div>
+          <div className="mt-1">
+            You don’t need an account to purchase karaoke practice tracks — just
+            your email address.
+          </div>
+          <div className="mt-1">
+            Accounts are mainly for members (subscription access, renewals, and
+            purchase history).
+          </div>
+        </div>
       </section>
     </main>
   );

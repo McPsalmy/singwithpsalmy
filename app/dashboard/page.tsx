@@ -3,15 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
-type StatusResp = {
-  ok: boolean;
-  isMember?: boolean;
-  email?: string;
-  expires_at?: string | null;
-  plan?: string | null;
-  error?: string;
-};
-
 type OrderItem = {
   slug?: string;
   title?: string;
@@ -74,15 +65,13 @@ export default function DashboardPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
 
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<StatusResp | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersErr, setOrdersErr] = useState<string | null>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
 
   const [busyClear, setBusyClear] = useState(false);
-  const [busyLogout, setBusyLogout] = useState(false);
-
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,39 +81,24 @@ export default function DashboardPage() {
       setLoading(true);
       setToast(null);
 
+      const { data: userData } = await supabase.auth.getUser();
+      const email = userData?.user?.email ?? null;
+
+      if (!alive) return;
+      setUserEmail(email);
+
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token || "";
 
-      // No session = logged out state
       if (!token) {
-        if (!alive) return;
-        setStatus({ ok: true, isMember: false });
         setOrders([]);
         setLoading(false);
         return;
       }
 
-      // 1) Membership status (small pill + for non-member hint)
-      const res = await fetch("/api/public/membership/status", {
-        cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const out = (await res.json().catch(() => null)) as StatusResp | null;
-
-      if (!alive) return;
-
-      if (!res.ok || !out?.ok) {
-        setStatus({ ok: false, error: out?.error || `Failed (HTTP ${res.status})` });
-        setOrders([]);
-        setLoading(false);
-        return;
-      }
-
-      setStatus(out);
       setLoading(false);
 
-      // 2) Orders history
+      // Orders history
       setOrdersLoading(true);
       setOrdersErr(null);
 
@@ -154,28 +128,14 @@ export default function DashboardPage() {
     };
   }, [supabase]);
 
-  const loggedIn = !!status?.email;
-  const isMember = !!status?.isMember;
-
-  async function logout() {
-    const ok = confirm("Log out of your account?");
-    if (!ok) return;
-
-    setBusyLogout(true);
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      setBusyLogout(false);
-      window.location.href = "/";
-    }
-  }
+  const loggedIn = !!userEmail;
 
   async function clearHistory() {
     setToast(null);
     setOrdersErr(null);
 
     const ok = confirm(
-      "Clear your purchase history?\n\nThis removes past purchases from your dashboard.\nIt does NOT affect your membership."
+      "Clear your purchase history?\n\nThis removes past purchases from your history.\nIt does NOT affect membership."
     );
     if (!ok) return;
 
@@ -219,132 +179,75 @@ export default function DashboardPage() {
     }
   }
 
-  const membershipPill =
-    !loggedIn
-      ? { text: "Logged out", cls: "bg-white/10 text-white/80 ring-1 ring-white/15" }
-      : loading
-        ? { text: "Checking…", cls: "bg-white/10 text-white/80 ring-1 ring-white/15" }
-        : status?.ok && isMember
-          ? { text: "Member", cls: "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/20" }
-          : status?.ok && !isMember
-            ? { text: "Not a member", cls: "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20" }
-            : { text: "Status error", cls: "bg-white/10 text-white/80 ring-1 ring-white/15" };
-
   return (
     <main className="min-h-screen text-white">
       <section className="mx-auto max-w-5xl px-5 py-12">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-semibold tracking-tight">Purchases</h1>
-              <span className={`rounded-xl px-3 py-1 text-xs ${membershipPill.cls}`}>
-                {membershipPill.text}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-white/65">Your paid track history and Paystack references.</p>
+            <a href="/account" className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white">
+              <span aria-hidden>←</span> Back to account
+            </a>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">Purchase history</h1>
+            <p className="mt-2 text-sm text-white/65">
+              Your receipts and Paystack references — for your records.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <a
               href="/browse"
-              className="inline-flex w-fit rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
             >
               Browse songs
             </a>
 
-            {!loggedIn ? (
-              <a
-                href="/signin"
-                className="inline-flex w-fit rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-              >
-                Log in
-              </a>
-            ) : (
-              <button
-                onClick={logout}
-                disabled={busyLogout}
-                className={[
-                  "inline-flex w-fit rounded-xl px-4 py-2 text-sm ring-1",
-                  busyLogout
-                    ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
-                    : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
-                ].join(" ")}
-                title={status?.email || "Log out"}
-              >
-                {busyLogout ? "Logging out..." : "Log out"}
-              </button>
-            )}
+            <button
+              disabled={!loggedIn || busyClear || orders.length === 0}
+              onClick={clearHistory}
+              className={[
+                "rounded-xl px-4 py-2 text-sm ring-1",
+                !loggedIn || busyClear || orders.length === 0
+                  ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
+                  : "bg-red-500/20 text-white ring-red-400/20 hover:bg-red-500/30",
+              ].join(" ")}
+              title={!loggedIn ? "Log in to manage history" : orders.length === 0 ? "Nothing to clear" : "Clear history"}
+            >
+              {busyClear ? "Working..." : "Clear history"}
+            </button>
           </div>
         </div>
 
         {!loggedIn ? (
-          <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-            <div className="text-lg font-semibold">Log in to view purchases</div>
+          <div className="mt-8 rounded-3xl bg-white/5 p-8 ring-1 ring-white/10">
+            <div className="text-lg font-semibold">Log in to view your history</div>
             <p className="mt-2 text-sm text-white/65">
-              Your purchases are linked to your account email. Log in to see your history.
+              Purchases are tied to your account email.
             </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <a
-                href="/signin"
-                className="inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-              >
-                Log in
-              </a>
-              <a
-                href="/signup"
-                className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Create account
-              </a>
-              <a
-                href="/recover"
-                className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Recover with reference
-              </a>
-            </div>
+            <a
+              href="/signin"
+              className="mt-5 inline-block rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
+            >
+              Log in
+            </a>
           </div>
         ) : (
           <div className="mt-8 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-lg font-semibold">Purchase history</div>
-                <p className="mt-1 text-sm text-white/65">
-                  Keep your Paystack reference safe. Recovery/download access is time-limited after purchase.
-                </p>
-              </div>
-
-              <button
-                disabled={busyClear || orders.length === 0}
-                onClick={clearHistory}
-                className={[
-                  "rounded-xl px-4 py-2 text-sm ring-1",
-                  busyClear || orders.length === 0
-                    ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
-                    : "bg-red-500/20 text-white ring-red-400/20 hover:bg-red-500/30",
-                ].join(" ")}
-                title={orders.length === 0 ? "Nothing to clear" : "Clear your history"}
-              >
-                {busyClear ? "Working..." : "Clear history"}
-              </button>
-            </div>
-
             {toast ? (
-              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+              <div className="mb-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
                 {toast}
               </div>
             ) : null}
 
-            {ordersLoading ? (
-              <div className="mt-4 text-sm text-white/70">Loading purchases…</div>
+            {loading || ordersLoading ? (
+              <div className="text-sm text-white/70">Loading purchases…</div>
             ) : ordersErr ? (
-              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+              <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
                 ❌ {ordersErr}
               </div>
             ) : orders.length === 0 ? (
-              <div className="mt-4 text-sm text-white/70">No purchases yet.</div>
+              <div className="text-sm text-white/70">No purchases yet.</div>
             ) : (
-              <div className="mt-4 overflow-x-auto">
+              <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="text-xs text-white/60">
                     <tr>
@@ -360,9 +263,7 @@ export default function DashboardPage() {
                       return (
                         <tr key={o.paystack_reference} className="border-t border-white/10">
                           <td className="py-3 pr-4 whitespace-nowrap">{fmt(o.paid_at)}</td>
-                          <td className="py-3 pr-4 whitespace-nowrap">
-                            {fmtMoneyKobo(o.amount, o.currency)}
-                          </td>
+                          <td className="py-3 pr-4 whitespace-nowrap">{fmtMoneyKobo(o.amount, o.currency)}</td>
                           <td className="py-3 pr-4">
                             <div className="space-y-1">
                               {itemsArr.length === 0 ? (
@@ -391,27 +292,10 @@ export default function DashboardPage() {
                 </table>
 
                 <p className="mt-3 text-xs text-white/50">
-                  Note: recovery/download access is time-limited after purchase. Always keep your reference safe.
+                  Keep your Paystack reference safe. Recovery/download access is time-limited after purchase.
                 </p>
               </div>
             )}
-
-            {/* Subtle membership ad for non-members */}
-            {!isMember ? (
-              <div className="mt-6 rounded-2xl bg-white/5 p-5 ring-1 ring-white/10">
-                <div className="text-sm font-semibold">Want instant downloads?</div>
-                <p className="mt-1 text-sm text-white/65">
-                  Join membership to unlock direct downloads and skip checkout — recognized automatically when you log
-                  in with this email.
-                </p>
-                <a
-                  href="/membership"
-                  className="mt-4 inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
-                >
-                  View membership plans
-                </a>
-              </div>
-            ) : null}
           </div>
         )}
       </section>

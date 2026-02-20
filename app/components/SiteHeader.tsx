@@ -13,35 +13,13 @@ type MemberStatus = {
   error?: string;
 };
 
-function fmtExpiry(expiresAtIso: string) {
-  const d = new Date(expiresAtIso);
-  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-}
-
-function daysUntil(expiresAtIso: string) {
-  const ms = new Date(expiresAtIso).getTime() - Date.now();
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
-}
-
 export default function SiteHeader() {
   const [ms, setMs] = useState<MemberStatus | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef<HTMLDivElement | null>(null);
+
   const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  // Desktop "Legal" dropdown state
-  const [legalOpen, setLegalOpen] = useState(false);
-  const legalRef = useRef<HTMLDivElement | null>(null);
-
-  // Close desktop legal dropdown when clicking outside
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!legalRef.current) return;
-      const t = e.target as Node;
-      if (!legalRef.current.contains(t)) setLegalOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
 
   // Supabase Auth user (for Log in / Log out UI)
   useEffect(() => {
@@ -67,6 +45,16 @@ export default function SiteHeader() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // close help dropdown on outside click
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!helpRef.current) return;
+      if (!helpRef.current.contains(e.target as Node)) setHelpOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
   // Membership status:
@@ -125,40 +113,16 @@ export default function SiteHeader() {
 
   // Only show "member badge" when the authenticated user matches membership email
   const view = useMemo(() => {
-    const expires = ms?.expires_at || null;
     const isMember = !!ms?.isMember;
     const msEmail = (ms?.email || "").trim().toLowerCase();
     const uEmail = (userEmail || "").trim().toLowerCase();
-
     const emailMatches = !!uEmail && !!msEmail && uEmail === msEmail;
 
-    // If logged out, never show member badge based on leftover cookies
-    if (!uEmail) {
-      return { show: false } as const;
-    }
+    // If logged out, never show member badge
+    if (!uEmail) return { show: false } as const;
+    if (!emailMatches) return { show: false } as const;
 
-    // If logged in but membership email doesn't match, hide membership badge to avoid confusion
-    if (!emailMatches) {
-      return { show: false } as const;
-    }
-
-    const hasAnyInfo = isMember || !!expires;
-    if (!hasAnyInfo) return { show: false } as const;
-
-    const expiryLabel = expires ? fmtExpiry(expires) : null;
-    const dLeft = expires ? daysUntil(expires) : null;
-
-    const nearExpiry = isMember && typeof dLeft === "number" && dLeft >= 1 && dLeft <= 7;
-    const expired = !isMember && !!expires;
-
-    return {
-      show: true,
-      isMember,
-      expired,
-      nearExpiry,
-      expiryLabel,
-      dLeft,
-    } as const;
+    return { show: true, isMember } as const;
   }, [ms, userEmail]);
 
   return (
@@ -179,13 +143,6 @@ export default function SiteHeader() {
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-6 text-sm text-white/70 md:flex">
-          {/* Account only when logged in */}
-          {userEmail ? (
-            <a className="hover:text-white" href="/account">
-              Account
-            </a>
-          ) : null}
-
           <a className="hover:text-white" href="/browse">
             Browse
           </a>
@@ -196,33 +153,31 @@ export default function SiteHeader() {
             Request a song
           </a>
 
-          {/* Combined menu for DMCA + Rights-holder */}
-          <div className="relative" ref={legalRef}>
+          {/* Help dropdown */}
+          <div ref={helpRef} className="relative">
             <button
               type="button"
-              onClick={() => setLegalOpen((v) => !v)}
+              onClick={() => setHelpOpen((v) => !v)}
               className="hover:text-white"
-              aria-haspopup="menu"
-              aria-expanded={legalOpen}
             >
-              Legal ▾
+              Help ▾
             </button>
 
-            {legalOpen ? (
-              <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-white/10 bg-black/90 p-2 shadow-lg">
+            {helpOpen ? (
+              <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl bg-black/90 ring-1 ring-white/15 backdrop-blur">
                 <a
                   href="/dmca"
-                  className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
-                  onClick={() => setLegalOpen(false)}
+                  className="block px-4 py-3 text-sm text-white/75 hover:bg-white/10 hover:text-white"
+                  onClick={() => setHelpOpen(false)}
                 >
-                  DMCA notice
+                  DMCA takedown
                 </a>
                 <a
                   href="/rights-holder"
-                  className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
-                  onClick={() => setLegalOpen(false)}
+                  className="block px-4 py-3 text-sm text-white/75 hover:bg-white/10 hover:text-white"
+                  onClick={() => setHelpOpen(false)}
                 >
-                  Rights-holder request
+                  Rights-holder contact
                 </a>
               </div>
             ) : null}
@@ -235,7 +190,10 @@ export default function SiteHeader() {
           <button
             type="button"
             className="md:hidden rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => {
+              setMenuOpen((v) => !v);
+              setHelpOpen(false);
+            }}
             aria-label="Open menu"
           >
             ☰
@@ -243,72 +201,33 @@ export default function SiteHeader() {
 
           <CartIcon />
 
+          {/* Membership badge (member only, no expiry text) */}
+          {view.show && view.isMember ? (
+            <a
+              href="/account"
+              className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+              title="Account"
+            >
+              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+              Member
+            </a>
+          ) : null}
+
           {/* Auth */}
           {userEmail ? (
-            <button
-              onClick={logout}
+            <a
+              href="/account"
               className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
               title={userEmail}
             >
-              Log out
-            </button>
-          ) : (
-            <>
-              <div className="hidden md:flex items-center">
-                <a
-                  href="/signin"
-                  className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                >
-                  Log in
-                </a>
-              </div>
-
-              <a
-                href="/signin"
-                className="md:hidden rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Log in
-              </a>
-            </>
-          )}
-
-          {/* Membership area */}
-          {view.show && view.isMember ? (
-            <div className="flex items-center gap-2">
-              <a
-                href="/membership"
-                className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-                title="View membership"
-              >
-                <span className="mr-2 inline-flex h-2 w-2 rounded-full bg-emerald-400 align-middle" />
-                <span className="hidden sm:inline">
-                  Member{view.expiryLabel ? ` (until ${view.expiryLabel})` : ""}
-                </span>
-                <span className="sm:hidden">Member</span>
-              </a>
-
-              {view.nearExpiry ? (
-                <a
-                  href="/membership"
-                  className="rounded-xl bg-amber-500/20 px-3 py-2 text-sm text-amber-200 ring-1 ring-amber-400/20 hover:bg-amber-500/30"
-                  title="Renew membership"
-                >
-                  <span className="hidden sm:inline">
-                    Renew{typeof view.dLeft === "number" ? ` (${view.dLeft}d)` : ""}
-                  </span>
-                  <span className="sm:hidden">Renew</span>
-                </a>
-              ) : null}
-            </div>
+              Account
+            </a>
           ) : (
             <a
-              href="/membership"
+              href="/signin"
               className="rounded-xl bg-white/10 px-3 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
             >
-              <span className="hidden sm:inline">
-                {view.show && view.expired ? "Renew membership" : "Join membership"}
-              </span>
-              <span className="sm:hidden">{view.show && view.expired ? "Renew" : "Join"}</span>
+              Log in
             </a>
           )}
         </div>
@@ -319,45 +238,26 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
-              {/* Account visible on mobile too, only when logged in */}
-              {userEmail ? (
-                <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/account">
-                  Account
-                </a>
-              ) : null}
-
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse
               </a>
-              <a
-                onClick={() => setMenuOpen(false)}
-                className="hover:text-white"
-                href="/membership"
-              >
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/membership">
                 Membership
               </a>
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/request">
                 Request a song
               </a>
 
-              {/* Combined links for legal/compliance pages */}
-              <div className="mt-1 rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">
-                  Legal
-                </div>
-                <div className="flex flex-col gap-2">
-                  <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
-                    DMCA notice
-                  </a>
-                  <a
-                    onClick={() => setMenuOpen(false)}
-                    className="hover:text-white"
-                    href="/rights-holder"
-                  >
-                    Rights-holder request
-                  </a>
-                </div>
-              </div>
+              <div className="h-px bg-white/10 my-1" />
+
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/dmca">
+                DMCA takedown
+              </a>
+              <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/rights-holder">
+                Rights-holder contact
+              </a>
+
+              <div className="h-px bg-white/10 my-1" />
 
               {!userEmail ? (
                 <>
@@ -369,16 +269,21 @@ export default function SiteHeader() {
                   </a>
                 </>
               ) : (
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    logout();
-                  }}
-                  className="text-left hover:text-white"
-                  title={userEmail}
-                >
-                  Log out
-                </button>
+                <>
+                  <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/account">
+                    Account
+                  </a>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      logout();
+                    }}
+                    className="text-left hover:text-white"
+                    title={userEmail}
+                  >
+                    Log out
+                  </button>
+                </>
               )}
             </div>
           </div>

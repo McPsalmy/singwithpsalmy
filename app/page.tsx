@@ -1,4 +1,3 @@
-import SiteHeader from "./components/SiteHeader";
 import CoverTile from "./components/CoverTile";
 import HomeSearch from "./components/HomeSearch";
 import { headers } from "next/headers";
@@ -18,9 +17,7 @@ async function getTracks(): Promise<Track[]> {
   const proto = h.get("x-forwarded-proto") ?? "http";
   const base = host ? `${proto}://${host}` : "";
 
-  const res = await fetch(`${base}/api/public/tracks`, { cache: "no-store" }).catch(
-    () => null
-  );
+  const res = await fetch(`${base}/api/public/tracks`, { cache: "no-store" }).catch(() => null);
   if (!res || !res.ok) return [];
 
   const out = await res.json().catch(() => ({}));
@@ -29,8 +26,17 @@ async function getTracks(): Promise<Track[]> {
   return (out.data ?? []) as Track[];
 }
 
+function money(n?: number) {
+  return `₦${Number(n ?? 700).toLocaleString("en-NG")}`;
+}
+
 export default async function Home() {
   const tracks = await getTracks();
+
+  // Newest first (reliable)
+  const newestFirst = [...tracks].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   // Featured = random picks (stable for this page load)
   const featured = (() => {
@@ -39,25 +45,24 @@ export default async function Home() {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    return pool.slice(0, 5); // we'll hide the 5th on mobile
+    return pool.slice(0, 5); // hide the 5th on mobile
   })();
 
   const mostDownloaded = [...tracks]
     .sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0))
     .slice(0, 4);
 
-  const newlyAdded = tracks.slice(0, 5); // hide 5th on mobile
+  const newlyAdded = newestFirst.slice(0, 5); // hide 5th on mobile
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-5">
         {/* Hero */}
         <div className="mx-auto max-w-2xl text-center">
           <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-            Sing Your Heart Out
+            Sing your heart out
           </h1>
+
           <p className="mt-4 text-base leading-relaxed text-white/70 md:text-lg">
             High-quality karaoke practice tracks for practice, performance, and pure fun.
           </p>
@@ -68,10 +73,13 @@ export default async function Home() {
 
           <div className="mt-7 mx-auto max-w-2xl rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+              <div className="text-left sm:text-left">
                 <div className="text-xs text-white/60">Membership</div>
                 <div className="mt-1 text-lg font-semibold">
-                  Unlimited Access to our Full Library + Song Request benefits
+                  Unlimited access to the full library + song request benefits
+                </div>
+                <div className="mt-1 text-sm text-white/65">
+                  Active members download instantly while subscription is active.
                 </div>
               </div>
 
@@ -97,7 +105,10 @@ export default async function Home() {
         <div className="mt-12">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight">Featured Songs</h2>
+              <h2 className="text-2xl font-semibold tracking-tight">Featured songs</h2>
+              <p className="mt-2 text-sm text-white/65">
+                Quick picks from across the catalogue.
+              </p>
             </div>
 
             <a
@@ -107,6 +118,14 @@ export default async function Home() {
               View all →
             </a>
           </div>
+
+          {/* mobile-friendly secondary link */}
+          <a
+            href="/browse"
+            className="mt-3 inline-block text-sm text-white/70 underline hover:text-white md:hidden"
+          >
+            Browse all songs →
+          </a>
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {featured.map((s, idx) => (
@@ -127,13 +146,12 @@ export default async function Home() {
                 <div className="mt-3">
                   <div className="text-sm font-semibold">{s.title}</div>
                   <div className="mt-1 text-xs text-white/60">
-                    ₦{Number(s.price_naira ?? 700).toLocaleString("en-NG")} •{" "}
-                    {(s.downloads ?? 0).toLocaleString("en-NG")} downloads
+                    {money(s.price_naira)} • {(s.downloads ?? 0).toLocaleString("en-NG")} downloads
                   </div>
                 </div>
 
                 <div className="mt-3 text-xs text-white/70 group-hover:text-white">
-                  View Song →
+                  View song →
                 </div>
               </a>
             ))}
@@ -144,10 +162,8 @@ export default async function Home() {
         <div className="mt-12">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight">Most Downloaded</h2>
-              <p className="mt-2 text-sm text-white/65">
-                Popular picks from the community.
-              </p>
+              <h2 className="text-2xl font-semibold tracking-tight">Most downloaded</h2>
+              <p className="mt-2 text-sm text-white/65">Popular picks from the community.</p>
             </div>
 
             <a
@@ -187,10 +203,8 @@ export default async function Home() {
         <div className="mt-12">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-semibold tracking-tight">Newly Added</h2>
-              <p className="mt-2 text-sm text-white/65">
-                Fresh uploads — newest first.
-              </p>
+              <h2 className="text-2xl font-semibold tracking-tight">Newly added</h2>
+              <p className="mt-2 text-sm text-white/65">Fresh uploads — newest first.</p>
             </div>
 
             <a
@@ -219,13 +233,11 @@ export default async function Home() {
 
                 <div className="mt-3">
                   <div className="text-sm font-semibold">{s.title}</div>
-                  <div className="mt-1 text-xs text-white/60">
-                    ₦{Number(s.price_naira ?? 700).toLocaleString("en-NG")}
-                  </div>
+                  <div className="mt-1 text-xs text-white/60">{money(s.price_naira)}</div>
                 </div>
 
                 <div className="mt-3 text-xs text-white/70 group-hover:text-white">
-                  View Song →
+                  View song →
                 </div>
               </a>
             ))}

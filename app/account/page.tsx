@@ -3,227 +3,247 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
-type MemberStatus = {
+type StatusResp = {
   ok: boolean;
-  isMember: boolean;
+  isMember?: boolean;
   email?: string;
   expires_at?: string | null;
   plan?: string | null;
   error?: string;
 };
 
-function fmtDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+function fmtDate(iso?: string | null) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("en-NG", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(iso);
+  }
 }
 
 export default function AccountPage() {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [ms, setMs] = useState<MemberStatus | null>(null);
+  const supabase = useMemo(() => supabaseAuthClient(), []);
+
   const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<StatusResp | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Load auth user
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const supabase = supabaseAuthClient();
-        const { data } = await supabase.auth.getUser();
-        if (cancelled) return;
-        setUserEmail(data?.user?.email ?? null);
-      } catch {
-        if (!cancelled) setUserEmail(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Load membership status using bearer token if available
-  useEffect(() => {
-    let cancelled = false;
+    let alive = true;
 
     (async () => {
       setLoading(true);
-      try {
-        const supabase = supabaseAuthClient();
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token || "";
 
-        const res = await fetch("/api/public/membership/status", {
-          cache: "no-store",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+      const { data: userData } = await supabase.auth.getUser();
+      const email = userData?.user?.email ?? null;
 
-        const out = (await res.json().catch(() => ({}))) as MemberStatus;
-        if (cancelled) return;
+      if (!alive) return;
+      setUserEmail(email);
 
-        if (!res.ok || !out?.ok) {
-          setMs(null);
-        } else {
-          setMs(out);
-        }
-      } catch {
-        if (!cancelled) setMs(null);
-      } finally {
-        if (!cancelled) setLoading(false);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || "";
+
+      if (!token) {
+        setStatus({ ok: true, isMember: false });
+        setLoading(false);
+        return;
       }
+
+      const res = await fetch("/api/public/membership/status", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const out = (await res.json().catch(() => null)) as StatusResp | null;
+
+      if (!alive) return;
+
+      if (!res.ok || !out?.ok) {
+        setStatus({ ok: false, error: out?.error || `Failed (HTTP ${res.status})` });
+        setLoading(false);
+        return;
+      }
+
+      setStatus(out);
+      setLoading(false);
     })();
 
     return () => {
-      cancelled = true;
+      alive = false;
     };
-  }, [userEmail]);
+  }, [supabase]);
 
-  const membershipPill = useMemo(() => {
-    if (!userEmail) return { text: "Logged out", tone: "muted" as const };
-    if (loading) return { text: "Checking…", tone: "muted" as const };
+  const loggedIn = !!userEmail;
+  const isMember = !!status?.isMember;
 
-    if (!ms?.ok) return { text: "Status unavailable", tone: "muted" as const };
+  async function logout() {
+    const ok = confirm("Log out of your account?");
+    if (!ok) return;
 
-    if (ms.isMember) {
-      const until = ms.expires_at ? ` • until ${fmtDate(ms.expires_at)}` : "";
-      return { text: `Member${until}`, tone: "good" as const };
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      // clear legacy cookies too
+      try {
+        await fetch("/api/public/auth/logout", { method: "POST" });
+      } catch {}
+      window.location.href = "/";
     }
-
-    if (!ms.isMember && ms.expires_at) {
-      return { text: `Expired • ${fmtDate(ms.expires_at)}`, tone: "warn" as const };
-    }
-
-    return { text: "Not a member", tone: "muted" as const };
-  }, [userEmail, loading, ms]);
-
-  const pillClass =
-    membershipPill.tone === "good"
-      ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-400/20"
-      : membershipPill.tone === "warn"
-        ? "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20"
-        : "bg-white/10 text-white/80 ring-1 ring-white/15";
+  }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-5">
-      {/* Header row */}
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Account</h1>
-          <p className="mt-1 text-sm text-white/60">Your profile & membership.</p>
+    <main className="min-h-screen text-white">
+      <section className="mx-auto max-w-5xl px-5 py-12">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <a href="/" className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white">
+              <span aria-hidden>←</span> Home
+            </a>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">Account</h1>
+            <p className="mt-2 text-sm text-white/65">
+              Your membership details and account actions.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/dashboard"
+              className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Purchase history
+            </a>
+            {loggedIn ? (
+              <button
+                onClick={logout}
+                className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+                title={userEmail ?? "Log out"}
+              >
+                Log out
+              </button>
+            ) : (
+              <a
+                href="/signin"
+                className="inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                Log in
+              </a>
+            )}
+          </div>
         </div>
 
-        <span className={`shrink-0 rounded-xl px-3 py-2 text-xs ${pillClass}`}>
-          {membershipPill.text}
-        </span>
-      </div>
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          {/* Identity */}
+          <div className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+            <div className="text-lg font-semibold">Signed-in email</div>
 
-      {/* Logged out */}
-      {!userEmail ? (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <p className="text-sm text-white/75">Please log in to view your account.</p>
-          <a
-            href="/signin"
-            className="mt-4 inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
-          >
-            Log in
-          </a>
-        </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
-          {/* Profile card */}
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5 lg:col-span-2">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-white">Profile</h2>
-              <span className="rounded-xl bg-white/10 px-3 py-1 text-xs text-white/70 ring-1 ring-white/10">
-                Signed in
-              </span>
-            </div>
+            {loading ? (
+              <div className="mt-4 text-sm text-white/70">Loading…</div>
+            ) : loggedIn ? (
+              <div className="mt-3 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
+                <div className="text-xs text-white/60">Email</div>
+                <div className="mt-1 text-sm font-semibold break-all">{userEmail}</div>
+              </div>
+            ) : (
+              <div className="mt-4 text-sm text-white/70">
+                You’re not logged in yet.
+                <div className="mt-4 flex gap-2">
+                  <a
+                    href="/signin"
+                    className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
+                  >
+                    Log in
+                  </a>
+                  <a
+                    href="/signup"
+                    className="rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+                  >
+                    Create account
+                  </a>
+                </div>
+              </div>
+            )}
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
-              <div className="text-xs uppercase tracking-wide text-white/50">Email</div>
-              <div className="mt-1 break-all text-sm font-medium text-white/90">{userEmail}</div>
+            <div className="mt-5 text-xs text-white/55">
+              Tip: membership is recognized when you log in with the same email used for payment.
             </div>
+          </div>
+
+          {/* Membership */}
+          <div className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
+            <div className="text-lg font-semibold">Membership</div>
+
+            {loading ? (
+              <div className="mt-4 text-sm text-white/70">Checking membership…</div>
+            ) : !status?.ok ? (
+              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+                ❌ {status?.error || "Could not load membership status."}
+              </div>
+            ) : (
+              <>
+                <div className="mt-3 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
+                  <div className="text-xs text-white/60">Status</div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {isMember ? "Active" : "Not active"}
+                  </div>
+
+                  <div className="mt-2 text-xs text-white/60">
+                    Plan: <span className="text-white">{status.plan ?? "—"}</span> • Expires:{" "}
+                    <span className="text-white">{fmtDate(status.expires_at)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <a
+                    href="/membership"
+                    className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-white/90"
+                  >
+                    {isMember ? "Manage / renew" : "Join membership"}
+                  </a>
+                  <a
+                    href="/request"
+                    className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+                  >
+                    Request a song
+                  </a>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Delete account request (simple + clean) */}
+          <div className="md:col-span-2 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
+            <div className="text-lg font-semibold">Delete account request</div>
+            <p className="mt-2 text-sm text-white/65">
+              If you want your account removed, email us from your signed-in email address.
+            </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <a
-                href="/membership"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
+                href="mailto:support@singwithpsalmy.com?subject=Delete%20my%20account&body=Please%20delete%20my%20SingWithPsalmy%20account.%0A%0ASigned-in%20email%3A%20"
+                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
               >
-                Membership
-              </a>
-
-              <a
-                href="/reset-password"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Reset password
-              </a>
-
-              <a
-                href="/update-password"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Update password
-              </a>
-            </div>
-          </section>
-
-          {/* Quick actions */}
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <h2 className="text-base font-semibold text-white">Quick actions</h2>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <a
-                href="/browse"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Browse songs
+                Email support
               </a>
               <a
-                href="/request"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
+                href="/dmca"
+                className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
               >
-                Request a song
-              </a>
-              <a
-                href="/dashboard"
-                className="rounded-xl bg-white/10 px-4 py-2 text-sm text-white ring-1 ring-white/15 hover:bg-white/15"
-              >
-                Purchase history
+                DMCA / Rights help
               </a>
             </div>
 
-            <p className="mt-3 text-xs text-white/50">
-              (We may remove this later if dashboard becomes redundant.)
-            </p>
-          </section>
-
-          {/* Danger zone */}
-          <section className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5 lg:col-span-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-red-200">Delete account</h2>
-                <p className="mt-1 text-xs text-white/55">
-                  This will remove your login and anonymize your email in payment records.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled
-                className="inline-flex cursor-not-allowed rounded-xl bg-red-500/20 px-4 py-2 text-sm text-red-200 ring-1 ring-red-400/20"
-                title="We will enable this after the secure delete API is added"
-              >
-                Delete account (coming soon)
-              </button>
+            <div className="mt-3 text-xs text-white/55">
+              We’ll confirm ownership and process it quickly.
             </div>
-          </section>
+          </div>
         </div>
-      )}
+      </section>
     </main>
   );
 }

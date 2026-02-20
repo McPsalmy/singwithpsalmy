@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 export default function ResetPasswordPage() {
@@ -39,8 +38,6 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-md px-5 py-14">
         <h1 className="text-3xl font-semibold tracking-tight">Reset password</h1>
         <p className="mt-2 text-sm text-white/70">

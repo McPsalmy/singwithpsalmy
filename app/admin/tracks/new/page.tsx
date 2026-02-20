@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import SiteHeader from "../../../components/SiteHeader";
 import UploadSlots from "../../../components/UploadSlots";
 import AdminGate from "../../../components/AdminGate";
 
@@ -73,8 +72,6 @@ export default function NewTrackPage() {
   return (
     <AdminGate>
       <main className="min-h-screen text-white">
-        <SiteHeader />
-
         <section className="mx-auto max-w-3xl px-5 py-12">
           <h1 className="text-3xl font-semibold tracking-tight">Add track</h1>
           <p className="mt-2 text-sm text-white/65">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import SiteHeader from "../../components/SiteHeader";
 
 export default function PaystackCallbackPage() {
   const [msg, setMsg] = useState("Verifying payment...");
@@ -73,7 +72,6 @@ window.dispatchEvent(new Event("swp_cart_changed"));
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
       <section className="mx-auto max-w-2xl px-5 py-12">
         <h1 className="text-3xl font-semibold tracking-tight">Payment status</h1>
         <p className="mt-3 text-sm text-white/70">{msg}</p>

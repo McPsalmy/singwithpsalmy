@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 
 export default function RecoverPage() {
   const [ref, setRef] = useState("");
@@ -39,7 +38,6 @@ export default function RecoverPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
       <section className="mx-auto max-w-xl px-5 py-12">
         <h1 className="text-3xl font-semibold tracking-tight">Recover your purchase</h1>
         <p className="mt-2 text-sm text-white/65">

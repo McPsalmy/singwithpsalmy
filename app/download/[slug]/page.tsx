@@ -1,4 +1,3 @@
-import SiteHeader from "../../components/SiteHeader";
 import CoverTile from "../../components/CoverTile";
 import AutoDownload from "./AutoDownload";
 import { cookies } from "next/headers";
@@ -103,7 +102,7 @@ export default async function DownloadPage({
   if (!isMember) {
     return (
       <main className="min-h-screen text-white">
-        <SiteHeader />
+
 
         <section className="mx-auto max-w-3xl px-5 py-16 text-center">
           <h1 className="text-3xl font-semibold tracking-tight">Members-only download</h1>
@@ -148,8 +147,6 @@ export default async function DownloadPage({
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-4xl px-5 py-12">
         <h1 className="text-3xl font-semibold tracking-tight">Download</h1>
 

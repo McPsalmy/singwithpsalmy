@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import CoverTile from "../components/CoverTile";
 
 type Track = {
@@ -107,9 +106,9 @@ function matchScore(queryRaw: string, titleRaw: string) {
 }
 
 const SORT_LABEL: Record<"name" | "date" | "downloads", string> = {
-  name: "By Name",
-  date: "By Date (newest)",
-  downloads: "Most Downloaded",
+  name: "By name",
+  date: "Newest",
+  downloads: "Most downloaded",
 };
 
 // 20 on mobile, 40 on desktop
@@ -129,7 +128,7 @@ function getCompactPages(current: number, total: number) {
   for (let p = current - 1; p <= current + 1; p++) {
     if (p > 1 && p < total) pages.add(p);
   }
-  // also keep 2 and total-1 to reduce "jumpiness"
+
   pages.add(2);
   pages.add(total - 1);
 
@@ -153,6 +152,7 @@ export default function BrowsePage() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
   // custom dropdown
   const [sortOpen, setSortOpen] = useState(false);
@@ -194,18 +194,28 @@ export default function BrowsePage() {
   }, []);
 
   async function load() {
+    setErr(null);
     setLoading(true);
-    const res = await fetch("/api/public/tracks", { cache: "no-store" });
-    const out = await res.json().catch(() => ({}));
-    setLoading(false);
 
-    if (!res.ok || !out?.ok) {
-      console.error(out);
-      alert("Could not load tracks.");
-      return;
+    try {
+      const res = await fetch("/api/public/tracks", { cache: "no-store" });
+      const out = await res.json().catch(() => ({}));
+
+      if (!res.ok || !out?.ok) {
+        console.error(out);
+        setErr(out?.error || "Could not load songs. Please refresh.");
+        setTracks([]);
+        setLoading(false);
+        return;
+      }
+
+      setTracks(out.data ?? []);
+      setLoading(false);
+    } catch (e: any) {
+      setTracks([]);
+      setLoading(false);
+      setErr(e?.message || "Could not load songs. Please refresh.");
     }
-
-    setTracks(out.data ?? []);
   }
 
   // initial load + read query params from URL
@@ -220,7 +230,21 @@ export default function BrowsePage() {
     }
 
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // keep URL synced (shareable links)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+
+    if (q.trim()) url.searchParams.set("q", q.trim());
+    else url.searchParams.delete("q");
+
+    url.searchParams.set("sort", sort);
+
+    window.history.replaceState({}, "", url.toString());
+  }, [q, sort]);
 
   const filtered = useMemo(() => {
     const query = q.trim();
@@ -264,25 +288,34 @@ export default function BrowsePage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-4xl font-semibold tracking-tight">Browse Songs</h1>
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 text-xs text-white/60 hover:text-white"
+            >
+              <span aria-hidden>←</span> Home
+            </a>
+
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight">Browse</h1>
+
             <p className="mt-2 text-sm text-white/60">
-              Showing{" "}
-              <span className="text-white">
-                {filtered.length.toLocaleString("en-NG")}
-              </span>{" "}
-              song{filtered.length === 1 ? "" : "s"}
-              {loading ? "" : ` • ${pageSize}/page`}
+              {loading ? (
+                "Loading songs…"
+              ) : (
+                <>
+                  Showing{" "}
+                  <span className="text-white">{filtered.length.toLocaleString("en-NG")}</span>{" "}
+                  song{filtered.length === 1 ? "" : "s"} • {pageSize}/page
+                </>
+              )}
             </p>
           </div>
 
           <div className="flex flex-col gap-3 md:items-end">
             <div className="flex items-center gap-2">
-              <div className="text-xs text-white/60">Sort by</div>
+              <div className="text-xs text-white/60">Sort</div>
 
               <div ref={sortRef} className="relative">
                 <button
@@ -317,15 +350,25 @@ export default function BrowsePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 md:w-[420px]">
+            <div className="flex items-center justify-between gap-3 md:w-[520px]">
               <div className="flex-1 rounded-2xl bg-white/5 p-2 ring-1 ring-white/10">
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search songs..."
+                  placeholder="Search songs…"
                   className="w-full bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-white/40"
                 />
               </div>
+
+              {q.trim() ? (
+                <button
+                  onClick={() => setQ("")}
+                  className="rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 hover:bg-white/10"
+                  title="Clear search"
+                >
+                  Clear
+                </button>
+              ) : null}
 
               <div className="flex items-center gap-2">
                 <button
@@ -354,6 +397,19 @@ export default function BrowsePage() {
             </div>
           </div>
         </div>
+
+        {err ? (
+          <div className="mt-6 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+            <div className="text-sm font-semibold">Couldn’t load songs</div>
+            <div className="mt-1 text-sm text-white/70">{err}</div>
+            <button
+              onClick={load}
+              className="mt-4 rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-8">
           {loading ? (

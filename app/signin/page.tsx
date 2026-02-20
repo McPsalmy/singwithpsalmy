@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
 function getSiteUrl() {
@@ -57,7 +56,8 @@ export default function SignInPage() {
       return;
     }
 
-    window.location.href = "/dashboard";
+    // ✅ go to Account (settings / membership view)
+    window.location.href = "/account";
   }
 
   async function sendMagicLink(e: React.FormEvent) {
@@ -72,7 +72,8 @@ export default function SignInPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email: eemail,
       options: {
-        emailRedirectTo: `${siteUrl}/dashboard`,
+        // ✅ when they click the email link, land on Account
+        emailRedirectTo: `${siteUrl}/account`,
       },
     });
 
@@ -81,7 +82,6 @@ export default function SignInPage() {
     if (error) {
       const m = error.message || "Could not send link.";
       setMsg(m);
-      // Even here, if they’re “unconfirmed”, resend link helps anyway.
       if (looksUnconfirmedEmail(m)) setNeedsConfirm(true);
       return;
     }
@@ -100,14 +100,13 @@ export default function SignInPage() {
     setMsg(null);
 
     try {
-      // Sending OTP link effectively “resends” an email that gets them into the app.
-      // If email confirmations are enabled, this gives them the right path forward.
       const siteUrl = getSiteUrl();
 
       const { error } = await supabase.auth.signInWithOtp({
         email: eemail,
         options: {
-          emailRedirectTo: `${siteUrl}/dashboard`,
+          // ✅ confirmation/sign-in path sends them to Account
+          emailRedirectTo: `${siteUrl}/account`,
         },
       });
 
@@ -128,8 +127,6 @@ export default function SignInPage() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-md px-5 py-14">
         <h1 className="text-3xl font-semibold tracking-tight">Log in</h1>
         <p className="mt-2 text-sm text-white/70">
@@ -214,10 +211,7 @@ export default function SignInPage() {
               </div>
 
               <div className="mt-3 flex items-center justify-between">
-                <a
-                  href="/reset-password"
-                  className="text-xs text-white/70 underline hover:text-white"
-                >
+                <a href="/reset-password" className="text-xs text-white/70 underline hover:text-white">
                   Forgot password?
                 </a>
 
@@ -267,7 +261,6 @@ export default function SignInPage() {
             {busy ? "Working..." : mode === "password" ? "Log in" : "Send link"}
           </button>
 
-          {/* Email confirmation helper */}
           {needsConfirm ? (
             <div className="mt-4 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm ring-1 ring-amber-400/20">
               <div className="font-semibold text-amber-200">Email not confirmed</div>
@@ -289,9 +282,7 @@ export default function SignInPage() {
                 {confirmBusy ? "Sending..." : "Resend email"}
               </button>
 
-              <div className="mt-2 text-xs text-white/60">
-                Tip: also check Spam/Junk or Promotions tabs.
-              </div>
+              <div className="mt-2 text-xs text-white/60">Tip: also check Spam/Junk or Promotions tabs.</div>
             </div>
           ) : null}
 
@@ -315,9 +306,7 @@ export default function SignInPage() {
           <div className="mt-1">
             You don’t need an account to purchase karaoke practice tracks — just your email address.
           </div>
-          <div className="mt-1">
-            Accounts are mainly for members (subscription access, renewals, and dashboards).
-          </div>
+          <div className="mt-1">Accounts are mainly for members (subscription access and account management).</div>
         </div>
       </section>
     </main>
