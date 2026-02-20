@@ -13,6 +13,26 @@ type StatusResp = {
   error?: string;
 };
 
+type OrderItem = {
+  slug?: string;
+  title?: string;
+  version?: string;
+};
+
+type OrderRow = {
+  paystack_reference: string;
+  amount: number;
+  currency: string;
+  items: OrderItem[] | any;
+  paid_at: string | null;
+};
+
+type OrdersResp = {
+  ok: boolean;
+  data?: OrderRow[];
+  error?: string;
+};
+
 function fmt(iso?: string | null) {
   if (!iso) return "—";
   try {
@@ -28,30 +48,63 @@ function fmt(iso?: string | null) {
   }
 }
 
+function fmtMoneyKobo(amountKobo?: number, currency?: string) {
+  const n = Number(amountKobo || 0) / 100;
+  const cur = (currency || "NGN").toUpperCase();
+  // keep it simple: NGN shown as ₦
+  const symbol = cur === "NGN" ? "₦" : `${cur} `;
+  return `${symbol}${n.toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
+}
+
+function niceItem(i: OrderItem) {
+  const title = (i?.title || i?.slug || "Track").toString();
+  const v = (i?.version || "").toString();
+  const suffix =
+    v === "instrumental"
+      ? " (Performance)"
+      : v === "full-guide"
+      ? " (Practice)"
+      : v === "low-guide"
+      ? " (Low guide)"
+      : v
+      ? ` (${v})`
+      : "";
+  return `${title}${suffix}`;
+}
+
 export default function DashboardPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
 
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StatusResp | null>(null);
 
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersErr, setOrdersErr] = useState<string | null>(null);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+
+  const [busyClear, setBusyClear] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
   useEffect(() => {
     let alive = true;
 
     async function run() {
       setLoading(true);
+      setToast(null);
 
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token || "";
 
-      // If no session, show logged-out state (no loop)
+      // If no session, show logged-out state
       if (!token) {
         if (!alive) return;
         setStatus({ ok: true, isMember: false });
+        setOrders([]);
         setLoading(false);
         return;
       }
 
-      // Call membership status with Bearer token so server can verify identity
+      // 1) Membership status
       const res = await fetch("/api/public/membership/status", {
         cache: "no-store",
         headers: {
@@ -65,12 +118,38 @@ export default function DashboardPage() {
 
       if (!res.ok || !out?.ok) {
         setStatus({ ok: false, error: out?.error || `Failed (HTTP ${res.status})` });
+        setOrders([]);
         setLoading(false);
         return;
       }
 
       setStatus(out);
       setLoading(false);
+
+      // 2) Orders history (read-only)
+      setOrdersLoading(true);
+      setOrdersErr(null);
+
+      const r2 = await fetch("/api/dashboard/orders", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const o2 = (await r2.json().catch(() => null)) as OrdersResp | null;
+
+      if (!alive) return;
+
+      setOrdersLoading(false);
+
+      if (!r2.ok || !o2?.ok) {
+        setOrdersErr(o2?.error || `Could not load purchases (HTTP ${r2.status}).`);
+        setOrders([]);
+        return;
+      }
+
+      setOrders(o2.data ?? []);
     }
 
     run();
@@ -80,6 +159,58 @@ export default function DashboardPage() {
   }, [supabase]);
 
   const loggedIn = !!status?.email;
+  const isMember = !!status?.isMember;
+
+  async function clearHistory() {
+    setToast(null);
+    setOrdersErr(null);
+
+    const ok = confirm(
+      "Clear your purchase history?\n\nThis removes your past purchases from your dashboard. It does not affect your membership."
+    );
+    if (!ok) return;
+
+    const ok2 = prompt('Type CLEAR to confirm') === "CLEAR";
+    if (!ok2) {
+      setToast("Cancelled.");
+      return;
+    }
+
+    setBusyClear(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token || "";
+
+      if (!token) {
+        setBusyClear(false);
+        setToast("Please log in again.");
+        return;
+      }
+
+      const res = await fetch("/api/dashboard/orders", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const out = await res.json().catch(() => ({}));
+
+      setBusyClear(false);
+
+      if (!res.ok || !out?.ok) {
+        setToast(out?.error || `Failed (HTTP ${res.status})`);
+        return;
+      }
+
+      setOrders([]);
+      setToast("✅ Purchase history cleared.");
+    } catch (e: any) {
+      setBusyClear(false);
+      setToast(e?.message || "Request failed.");
+    }
+  }
 
   return (
     <main className="min-h-screen text-white">
@@ -90,7 +221,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
             <p className="mt-2 text-sm text-white/65">
-              Your account overview — membership status and access.
+              Your account overview — membership status and purchase history.
             </p>
           </div>
 
@@ -102,11 +233,9 @@ export default function DashboardPage() {
           </a>
         </div>
 
+        {/* Account + membership */}
         <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
           <div className="text-lg font-semibold">Account</div>
-          <div className="mt-1 text-sm text-white/65">
-            Logged-in users are matched to membership by email.
-          </div>
 
           {loading ? (
             <div className="mt-4 text-sm text-white/70">Loading…</div>
@@ -131,6 +260,13 @@ export default function DashboardPage() {
                   Create account
                 </a>
               </div>
+
+              <div className="mt-4 rounded-2xl bg-black/30 p-4 text-xs text-white/60 ring-1 ring-white/10">
+                <div className="text-white/80">Tip</div>
+                <div className="mt-1">
+                  Walk-in purchases still work without login — keep your Paystack reference safe for recovery.
+                </div>
+              </div>
             </div>
           ) : (
             <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -142,7 +278,7 @@ export default function DashboardPage() {
               <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
                 <div className="text-xs text-white/60">Membership</div>
                 <div className="mt-1 text-sm font-semibold">
-                  {status.isMember ? "Active" : "Not active"}
+                  {isMember ? "Active" : "Not active"}
                 </div>
                 <div className="mt-1 text-xs text-white/60">
                   Plan: {status.plan ?? "—"} • Expires: {fmt(status.expires_at)}
@@ -150,10 +286,10 @@ export default function DashboardPage() {
               </div>
 
               <div className="md:col-span-2 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-                <div className="text-xs text-white/60">Next</div>
+                <div className="text-xs text-white/60">What your account does</div>
                 <div className="mt-1 text-sm text-white/70">
-                  We’ll add your <span className="text-white">order history</span> here so you can re-download
-                  purchases anytime.
+                  If you subscribe with this email, your membership will unlock instant downloads automatically.
+                  Non-members can still purchase individual tracks anytime.
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-3">
@@ -161,7 +297,7 @@ export default function DashboardPage() {
                     href="/membership"
                     className="inline-flex rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
                   >
-                    Manage membership
+                    {isMember ? "Manage membership" : "Join membership"}
                   </a>
                   <a
                     href="/request"
@@ -174,6 +310,120 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Purchases */}
+        {loggedIn ? (
+          <div className="mt-8 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-lg font-semibold">Purchases</div>
+                <p className="mt-1 text-sm text-white/65">
+                  Your past purchases. Keep your Paystack reference — it’s used for recovery.
+                </p>
+              </div>
+
+              <button
+                disabled={busyClear || orders.length === 0}
+                onClick={clearHistory}
+                className={[
+                  "rounded-xl px-4 py-2 text-sm ring-1",
+                  busyClear || orders.length === 0
+                    ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
+                    : "bg-red-500/20 text-white ring-red-400/20 hover:bg-red-500/30",
+                ].join(" ")}
+                title={orders.length === 0 ? "Nothing to clear" : "Clear your history"}
+              >
+                {busyClear ? "Working..." : "Clear history"}
+              </button>
+            </div>
+
+            {toast ? (
+              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+                {toast}
+              </div>
+            ) : null}
+
+            {ordersLoading ? (
+              <div className="mt-4 text-sm text-white/70">Loading purchases…</div>
+            ) : ordersErr ? (
+              <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
+                ❌ {ordersErr}
+              </div>
+            ) : orders.length === 0 ? (
+              <div className="mt-4 text-sm text-white/70">No purchases yet.</div>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs text-white/60">
+                    <tr>
+                      <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 pr-4">Amount</th>
+                      <th className="py-2 pr-4">Items</th>
+                      <th className="py-2 pr-4">Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((o) => {
+                      const itemsArr: OrderItem[] = Array.isArray(o.items) ? o.items : [];
+                      return (
+                        <tr key={o.paystack_reference} className="border-t border-white/10">
+                          <td className="py-3 pr-4 whitespace-nowrap">{fmt(o.paid_at)}</td>
+                          <td className="py-3 pr-4 whitespace-nowrap">
+                            {fmtMoneyKobo(o.amount, o.currency)}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <div className="space-y-1">
+                              {itemsArr.length === 0 ? (
+                                <span className="text-white/60">—</span>
+                              ) : (
+                                itemsArr.slice(0, 4).map((it, idx) => (
+                                  <div key={idx} className="text-white/85">
+                                    • {niceItem(it)}
+                                  </div>
+                                ))
+                              )}
+                              {itemsArr.length > 4 ? (
+                                <div className="text-xs text-white/60">
+                                  +{itemsArr.length - 4} more
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <div className="font-mono text-xs break-all text-white/85">
+                              {o.paystack_reference}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <p className="mt-3 text-xs text-white/50">
+                  Recovery window: downloads are available for a limited time after purchase. Keep your reference safe.
+                </p>
+              </div>
+            )}
+
+            {/* Subtle membership ad for non-members */}
+            {!isMember ? (
+              <div className="mt-6 rounded-2xl bg-white/5 p-5 ring-1 ring-white/10">
+                <div className="text-sm font-semibold">Want instant downloads?</div>
+                <p className="mt-1 text-sm text-white/65">
+                  Join membership to unlock direct downloads and skip the checkout step — recognized automatically when
+                  you log in with this email.
+                </p>
+                <a
+                  href="/membership"
+                  className="mt-4 inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90"
+                >
+                  View membership plans
+                </a>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
     </main>
   );
