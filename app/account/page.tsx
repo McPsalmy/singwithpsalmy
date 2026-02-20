@@ -459,7 +459,6 @@ export default function AccountPage() {
                 disabled={!loggedIn || delBusy}
                 onClick={submitDeleteRequest}
                 className={[
-                  "rounded-2xl px-5 py-3 text-sm font-semibold ring-1",
                   !loggedIn || delBusy
                     ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
                     : "bg-red-500/20 text-white ring-red-400/20 hover:bg-red-500/30",
