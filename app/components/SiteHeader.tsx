@@ -160,7 +160,7 @@ export default function SiteHeader() {
               onClick={() => setHelpOpen((v) => !v)}
               className="hover:text-white"
             >
-              Help ▾
+              Legal ▾
             </button>
 
             {helpOpen ? (
