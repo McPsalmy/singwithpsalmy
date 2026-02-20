@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify user from token using Supabase Auth
+    // Verify who is making the request (must be logged in)
     const admin = supabaseAdmin();
     const { data: userData, error: userErr } = await admin.auth.getUser(token);
 
@@ -38,9 +38,8 @@ export async function POST(req: Request) {
     const email = userData.user.email;
 
     const body = (await req.json().catch(() => null)) as Body | null;
-    const reason = String(body?.reason ?? "").trim().slice(0, 1000); // keep it sane
+    const reason = String(body?.reason ?? "").trim().slice(0, 1000);
 
-    // Insert a delete request record (admin can later process)
     const { error: insErr } = await admin.from("account_delete_requests").insert({
       email,
       reason: reason || null,
