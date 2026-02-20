@@ -2,17 +2,7 @@
 const nextConfig = {
   async headers() {
     return [
-      // ✅ Keep your existing /videos headers
-      {
-        source: "/videos/:path*",
-        headers: [
-          { key: "Content-Type", value: "video/mp4" },
-          { key: "Accept-Ranges", value: "bytes" },
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
-
-      // ✅ Security headers for the whole site (Paystack-safe)
+      // ✅ Security headers for the whole site (Paystack-safe + Supabase-safe)
       {
         source: "/(.*)",
         headers: [
@@ -55,7 +45,7 @@ const nextConfig = {
         ],
       },
 
-      // ✅ Never cache admin + APIs
+      // ✅ Never cache admin + APIs (important for security + freshness)
       { source: "/admin/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
       { source: "/psalmy", headers: [{ key: "Cache-Control", value: "no-store" }] },
       { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
