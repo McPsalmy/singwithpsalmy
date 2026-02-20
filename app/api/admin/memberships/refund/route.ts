@@ -15,6 +15,7 @@ export async function POST(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { ok: false, error: "Missing Supabase env vars" },
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Mark as refunded (idempotent)
+    // 2) Mark this payment as refunded (idempotent)
     const { error: updErr } = await supabase
       .from("membership_payments")
       .update({ status: "refunded" })
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3) Load all SUCCESS payments for this email (non-refunded)
+    // 3) Pull all remaining SUCCESS payments for this email
     const { data: payments, error: listErr } = await supabase
       .from("membership_payments")
       .select("months,paid_at,plan,status")
@@ -94,20 +95,25 @@ export async function POST(req: Request) {
       );
     }
 
-    // If no remaining successful payments, expire membership
+    // If no remaining successful payments -> expire membership (UPSERT)
     if (!payments || payments.length === 0) {
-      const { error: memUpdErr } = await supabase
+      const { data: saved, error: upErr } = await supabase
         .from("memberships")
-        .update({
-          status: "expired",
-          expires_at: null,
-          plan: null,
-        })
-        .eq("email", email);
+        .upsert(
+          {
+            email,
+            status: "expired",
+            plan: null,
+            expires_at: null,
+          },
+          { onConflict: "email" }
+        )
+        .select("email,status,plan,started_at,expires_at")
+        .single();
 
-      if (memUpdErr) {
+      if (upErr) {
         return NextResponse.json(
-          { ok: false, error: memUpdErr.message || "Could not expire membership" },
+          { ok: false, error: upErr.message || "Could not expire membership" },
           { status: 500, headers: { "Cache-Control": "no-store" } }
         );
       }
@@ -115,29 +121,24 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: true,
-          email,
-          status: "expired",
-          expires_at: null,
+          email: saved.email,
+          status: saved.status,
+          expires_at: saved.expires_at,
           remaining_payments: 0,
         },
         { headers: { "Cache-Control": "no-store" } }
       );
     }
 
-    // 4) Recompute expiry using "extend from max(current_expiry, payment_date)"
-    // This prevents weird future drift and matches how subscriptions renew.
+    // 4) Recompute expiry: extend from max(current_expiry, payment_date)
     let cursor: Date | null = null;
 
     for (const p of payments) {
       const months = Number((p as any).months || 0);
       const paidAt = (p as any).paid_at ? new Date((p as any).paid_at) : new Date();
 
-      if (!cursor) {
-        cursor = paidAt;
-      } else {
-        // if payment happens after expiry (gap), restart from payment date
-        if (paidAt.getTime() > cursor.getTime()) cursor = paidAt;
-      }
+      if (!cursor) cursor = paidAt;
+      if (paidAt.getTime() > cursor.getTime()) cursor = paidAt; // restart on gaps
 
       if (months > 0) cursor = addMonths(cursor, months);
     }
@@ -145,19 +146,24 @@ export async function POST(req: Request) {
     const newExpiry = (cursor ?? new Date()).toISOString();
     const latestPlan = String((payments[payments.length - 1] as any)?.plan || "unknown");
 
-    // 5) Update memberships derived state
-    const { error: memErr } = await supabase
+    // 5) Write derived membership row (UPSERT) and return what was actually saved
+    const { data: saved, error: upErr } = await supabase
       .from("memberships")
-      .update({
-        status: "active",
-        plan: latestPlan,
-        expires_at: newExpiry,
-      })
-      .eq("email", email);
+      .upsert(
+        {
+          email,
+          status: "active",
+          plan: latestPlan,
+          expires_at: newExpiry,
+        },
+        { onConflict: "email" }
+      )
+      .select("email,status,plan,started_at,expires_at")
+      .single();
 
-    if (memErr) {
+    if (upErr) {
       return NextResponse.json(
-        { ok: false, error: memErr.message || "Could not update membership expiry" },
+        { ok: false, error: upErr.message || "Could not update membership expiry" },
         { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
@@ -165,9 +171,9 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        email,
-        status: "active",
-        expires_at: newExpiry,
+        email: saved.email,
+        status: saved.status,
+        expires_at: saved.expires_at,
         remaining_payments: payments.length,
       },
       { headers: { "Cache-Control": "no-store" } }
