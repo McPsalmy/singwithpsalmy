@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
+import { getClientIp, rateLimit } from "../../../../lib/security";
 
 function normalizeVersion(v: unknown) {
   const val = Array.isArray(v) ? v[0] : v;
@@ -20,10 +21,7 @@ export async function GET(req: Request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return NextResponse.json(
-        { ok: false, error: "Missing Supabase env vars" },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing Supabase env vars" }, { status: 500 });
     }
 
     const url = new URL(req.url);
@@ -32,6 +30,16 @@ export async function GET(req: Request) {
 
     if (!slug) {
       return NextResponse.json({ ok: false, error: "Missing slug" }, { status: 400 });
+    }
+
+    // Global rate limit by IP
+    const ip = getClientIp(req);
+    const rl = rateLimit({ key: `member_dl:${ip}`, limit: 60, windowMs: 5 * 60 * 1000 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { ok: false, error: "Too many download requests. Please try again shortly." },
+        { status: 429, headers: { "Cache-Control": "no-store" } as any }
+      );
     }
 
     // Collect any cookie changes Supabase Auth wants to make (session refresh)
@@ -64,15 +72,29 @@ export async function GET(req: Request) {
     if (!email) {
       const res = NextResponse.json(
         { ok: false, error: "Unauthorized (please log in)" },
-        { status: 401 }
+        { status: 401, headers: { "Cache-Control": "no-store" } }
       );
 
-      for (const c of pendingCookies) {
-        res.cookies.set({ name: c.name, value: c.value, ...c.options });
-      }
-      for (const r of pendingRemovals) {
-        res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
-      }
+      for (const c of pendingCookies) res.cookies.set({ name: c.name, value: c.value, ...c.options });
+      for (const r of pendingRemovals) res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
+
+      return res;
+    }
+
+    // Rate limit per user+slug (prevents a single logged-in user hammering one track)
+    const rl2 = rateLimit({
+      key: `member_dl_user:${email}:${slug}`,
+      limit: 20,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rl2.ok) {
+      const res = NextResponse.json(
+        { ok: false, error: "Too many attempts for this track. Try again later." },
+        { status: 429, headers: { "Cache-Control": "no-store" } }
+      );
+
+      for (const c of pendingCookies) res.cookies.set({ name: c.name, value: c.value, ...c.options });
+      for (const r of pendingRemovals) res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
 
       return res;
     }
@@ -90,7 +112,7 @@ export async function GET(req: Request) {
       .limit(1);
 
     if (memErr) {
-      return NextResponse.json({ ok: false, error: memErr.message }, { status: 500 });
+      return NextResponse.json({ ok: false, error: memErr.message }, { status: 500, headers: { "Cache-Control": "no-store" } as any });
     }
 
     const row = rows?.[0];
@@ -100,15 +122,11 @@ export async function GET(req: Request) {
     if (!isActive) {
       const res = NextResponse.json(
         { ok: false, error: "Membership inactive or expired" },
-        { status: 403 }
+        { status: 403, headers: { "Cache-Control": "no-store" } }
       );
 
-      for (const c of pendingCookies) {
-        res.cookies.set({ name: c.name, value: c.value, ...c.options });
-      }
-      for (const r of pendingRemovals) {
-        res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
-      }
+      for (const c of pendingCookies) res.cookies.set({ name: c.name, value: c.value, ...c.options });
+      for (const r of pendingRemovals) res.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
 
       // Clear legacy member cookies
       res.cookies.set("swp_member", "", { path: "/", maxAge: 0 });
@@ -126,7 +144,7 @@ export async function GET(req: Request) {
     if (error || !data?.signedUrl) {
       return NextResponse.json(
         { ok: false, error: error?.message || "Could not create signed URL" },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } as any }
       );
     }
 
@@ -134,7 +152,7 @@ export async function GET(req: Request) {
     if (!upstream.ok || !upstream.body) {
       return NextResponse.json(
         { ok: false, error: `Upstream fetch failed (HTTP ${upstream.status})` },
-        { status: 502 }
+        { status: 502, headers: { "Cache-Control": "no-store" } as any }
       );
     }
 
@@ -150,14 +168,10 @@ export async function GET(req: Request) {
     const finalRes = new NextResponse(upstream.body, { headers: baseHeaders });
 
     // Apply auth cookie updates (session refresh)
-    for (const c of pendingCookies) {
-      finalRes.cookies.set({ name: c.name, value: c.value, ...c.options });
-    }
-    for (const r of pendingRemovals) {
-      finalRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
-    }
+    for (const c of pendingCookies) finalRes.cookies.set({ name: c.name, value: c.value, ...c.options });
+    for (const r of pendingRemovals) finalRes.cookies.set({ name: r.name, value: "", ...r.options, maxAge: 0 });
 
-    // Keep legacy cookies in sync for compatibility (typed sameSite)
+    // Keep legacy cookies in sync (compat; DB is still source of truth)
     finalRes.cookies.set("swp_member", "1", {
       path: "/",
       httpOnly: true,
@@ -176,9 +190,6 @@ export async function GET(req: Request) {
 
     return finalRes;
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unknown error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500, headers: { "Cache-Control": "no-store" } as any });
   }
 }
