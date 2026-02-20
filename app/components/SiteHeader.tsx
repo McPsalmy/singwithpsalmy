@@ -164,14 +164,18 @@ export default function SiteHeader() {
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-6 text-sm text-white/70 md:flex">
-          
-          {/* Show Dashboard only when logged in */}
+          {/* Show Dashboard + Account only when logged in */}
           {userEmail ? (
-            <a className="hover:text-white" href="/dashboard">
-              Dashboard
-            </a>
+            <>
+              <a className="hover:text-white" href="/dashboard">
+                Dashboard
+              </a>
+              <a className="hover:text-white" href="/account">
+                Account
+              </a>
+            </>
           ) : null}
-          
+
           <a className="hover:text-white" href="/browse">
             Browse
           </a>
@@ -280,18 +284,25 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-white/10 bg-black/0">
           <div className="mx-auto max-w-6xl px-4 py-3 text-sm text-white/80 sm:px-5">
             <div className="flex flex-col gap-3">
-
-              {/* Dashboard visible on mobile too, only when logged in */}
+              {/* Dashboard + Account visible on mobile too, only when logged in */}
               {userEmail ? (
-                <a
-                  onClick={() => setMenuOpen(false)}
-                  className="hover:text-white"
-                  href="/dashboard"
-                >
-                  Dashboard
-                </a>
+                <>
+                  <a
+                    onClick={() => setMenuOpen(false)}
+                    className="hover:text-white"
+                    href="/dashboard"
+                  >
+                    Dashboard
+                  </a>
+                  <a
+                    onClick={() => setMenuOpen(false)}
+                    className="hover:text-white"
+                    href="/account"
+                  >
+                    Account
+                  </a>
+                </>
               ) : null}
-
 
               <a onClick={() => setMenuOpen(false)} className="hover:text-white" href="/browse">
                 Browse

@@ -4,6 +4,21 @@ import { useMemo, useState } from "react";
 import SiteHeader from "../components/SiteHeader";
 import { supabaseAuthClient } from "../lib/supabaseAuthClient";
 
+function getSiteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://singwithpsalmy.com";
+}
+
+function looksUnconfirmedEmail(errMsg: string) {
+  const s = (errMsg || "").toLowerCase();
+  return (
+    s.includes("email not confirmed") ||
+    s.includes("email_not_confirmed") ||
+    s.includes("confirm your email") ||
+    s.includes("confirmation") ||
+    s.includes("not confirmed")
+  );
+}
+
 export default function SignInPage() {
   const supabase = useMemo(() => supabaseAuthClient(), []);
   const [mode, setMode] = useState<"password" | "magic">("password");
@@ -16,39 +31,47 @@ export default function SignInPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // When we detect “email not confirmed”
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
   async function signInPassword(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+    setNeedsConfirm(false);
     setBusy(true);
 
+    const eemail = email.trim();
+
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: eemail,
       password,
     });
 
     setBusy(false);
 
     if (error) {
-      setMsg(error.message);
+      const m = error.message || "Login failed.";
+      setMsg(m);
+      if (looksUnconfirmedEmail(m)) setNeedsConfirm(true);
       return;
     }
 
-    // After sign-in, go to Dashboard (membership status + future order history)
     window.location.href = "/dashboard";
   }
 
   async function sendMagicLink(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+    setNeedsConfirm(false);
     setBusy(true);
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://singwithpsalmy.com";
+    const siteUrl = getSiteUrl();
+    const eemail = email.trim();
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
+      email: eemail,
       options: {
-        // Magic link will return to dashboard after login
         emailRedirectTo: `${siteUrl}/dashboard`,
       },
     });
@@ -56,11 +79,51 @@ export default function SignInPage() {
     setBusy(false);
 
     if (error) {
-      setMsg(error.message);
+      const m = error.message || "Could not send link.";
+      setMsg(m);
+      // Even here, if they’re “unconfirmed”, resend link helps anyway.
+      if (looksUnconfirmedEmail(m)) setNeedsConfirm(true);
       return;
     }
 
     setMsg("✅ Check your email for the sign-in link.");
+  }
+
+  async function resendConfirmation() {
+    const eemail = email.trim();
+    if (!eemail || !eemail.includes("@")) {
+      setMsg("Please enter a valid email address first.");
+      return;
+    }
+
+    setConfirmBusy(true);
+    setMsg(null);
+
+    try {
+      // Sending OTP link effectively “resends” an email that gets them into the app.
+      // If email confirmations are enabled, this gives them the right path forward.
+      const siteUrl = getSiteUrl();
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email: eemail,
+        options: {
+          emailRedirectTo: `${siteUrl}/dashboard`,
+        },
+      });
+
+      if (error) {
+        setMsg(error.message || "Could not resend confirmation email.");
+        setConfirmBusy(false);
+        return;
+      }
+
+      setNeedsConfirm(false);
+      setMsg("✅ Email sent. Please check your inbox (and spam/junk).");
+    } catch (e: any) {
+      setMsg(e?.message || "Could not resend email.");
+    } finally {
+      setConfirmBusy(false);
+    }
   }
 
   return (
@@ -79,6 +142,7 @@ export default function SignInPage() {
             onClick={() => {
               setMode("password");
               setMsg(null);
+              setNeedsConfirm(false);
             }}
             className={[
               "rounded-xl px-4 py-2 text-sm ring-1",
@@ -95,6 +159,7 @@ export default function SignInPage() {
             onClick={() => {
               setMode("magic");
               setMsg(null);
+              setNeedsConfirm(false);
               setShowPassword(false);
             }}
             className={[
@@ -161,6 +226,7 @@ export default function SignInPage() {
                   onClick={() => {
                     setMode("magic");
                     setMsg(null);
+                    setNeedsConfirm(false);
                     setShowPassword(false);
                   }}
                   className="text-xs text-white/70 underline hover:text-white"
@@ -181,6 +247,7 @@ export default function SignInPage() {
                   onClick={() => {
                     setMode("password");
                     setMsg(null);
+                    setNeedsConfirm(false);
                   }}
                   className="text-xs text-white/70 underline hover:text-white"
                 >
@@ -199,6 +266,34 @@ export default function SignInPage() {
           >
             {busy ? "Working..." : mode === "password" ? "Log in" : "Send link"}
           </button>
+
+          {/* Email confirmation helper */}
+          {needsConfirm ? (
+            <div className="mt-4 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm ring-1 ring-amber-400/20">
+              <div className="font-semibold text-amber-200">Email not confirmed</div>
+              <div className="mt-1 text-white/70">
+                Please confirm your email address. If you didn’t get the email, you can resend it.
+              </div>
+
+              <button
+                type="button"
+                disabled={confirmBusy}
+                onClick={resendConfirmation}
+                className={[
+                  "mt-3 inline-flex rounded-xl px-3 py-2 text-sm font-semibold ring-1",
+                  confirmBusy
+                    ? "bg-white/10 text-white/70 ring-white/15"
+                    : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
+                ].join(" ")}
+              >
+                {confirmBusy ? "Sending..." : "Resend email"}
+              </button>
+
+              <div className="mt-2 text-xs text-white/60">
+                Tip: also check Spam/Junk or Promotions tabs.
+              </div>
+            </div>
+          ) : null}
 
           {msg ? (
             <div className="mt-4 rounded-2xl bg-white/10 px-4 py-3 text-sm ring-1 ring-white/15">
@@ -221,7 +316,7 @@ export default function SignInPage() {
             You don’t need an account to purchase karaoke practice tracks — just your email address.
           </div>
           <div className="mt-1">
-            Accounts are mainly for members (subscription access, renewals, and upcoming dashboards).
+            Accounts are mainly for members (subscription access, renewals, and dashboards).
           </div>
         </div>
       </section>

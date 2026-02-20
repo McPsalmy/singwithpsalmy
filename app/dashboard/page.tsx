@@ -21,7 +21,7 @@ type OrderItem = {
 
 type OrderRow = {
   paystack_reference: string;
-  amount: number;
+  amount: number; // kobo
   currency: string;
   items: OrderItem[] | any;
   paid_at: string | null;
@@ -51,7 +51,6 @@ function fmt(iso?: string | null) {
 function fmtMoneyKobo(amountKobo?: number, currency?: string) {
   const n = Number(amountKobo || 0) / 100;
   const cur = (currency || "NGN").toUpperCase();
-  // keep it simple: NGN shown as ₦
   const symbol = cur === "NGN" ? "₦" : `${cur} `;
   return `${symbol}${n.toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
 }
@@ -83,6 +82,8 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
 
   const [busyClear, setBusyClear] = useState(false);
+  const [busyLogout, setBusyLogout] = useState(false);
+
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function DashboardPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token || "";
 
-      // If no session, show logged-out state
+      // No session = logged out state
       if (!token) {
         if (!alive) return;
         setStatus({ ok: true, isMember: false });
@@ -107,9 +108,7 @@ export default function DashboardPage() {
       // 1) Membership status
       const res = await fetch("/api/public/membership/status", {
         cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const out = (await res.json().catch(() => null)) as StatusResp | null;
@@ -126,15 +125,13 @@ export default function DashboardPage() {
       setStatus(out);
       setLoading(false);
 
-      // 2) Orders history (read-only)
+      // 2) Orders history
       setOrdersLoading(true);
       setOrdersErr(null);
 
       const r2 = await fetch("/api/dashboard/orders", {
         cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const o2 = (await r2.json().catch(() => null)) as OrdersResp | null;
@@ -161,12 +158,25 @@ export default function DashboardPage() {
   const loggedIn = !!status?.email;
   const isMember = !!status?.isMember;
 
+  async function logout() {
+    const ok = confirm("Log out of your account?");
+    if (!ok) return;
+
+    setBusyLogout(true);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setBusyLogout(false);
+      window.location.href = "/";
+    }
+  }
+
   async function clearHistory() {
     setToast(null);
     setOrdersErr(null);
 
     const ok = confirm(
-      "Clear your purchase history?\n\nThis removes your past purchases from your dashboard. It does not affect your membership."
+      "Clear your purchase history?\n\nThis removes past purchases from your dashboard.\nIt does NOT affect your membership."
     );
     if (!ok) return;
 
@@ -190,9 +200,7 @@ export default function DashboardPage() {
 
       const res = await fetch("/api/dashboard/orders", {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const out = await res.json().catch(() => ({}));
@@ -221,21 +229,52 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
             <p className="mt-2 text-sm text-white/65">
-              Your account overview — membership status and purchase history.
+              Your membership status and purchase history — all in one place.
             </p>
           </div>
 
-          <a
-            href="/browse"
-            className="inline-flex w-fit rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
-          >
-            Browse songs
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/browse"
+              className="inline-flex w-fit rounded-xl bg-white/10 px-4 py-2 text-sm ring-1 ring-white/15 hover:bg-white/15"
+            >
+              Browse songs
+            </a>
+
+            {loggedIn ? (
+              <button
+                onClick={logout}
+                disabled={busyLogout}
+                className={[
+                  "inline-flex w-fit rounded-xl px-4 py-2 text-sm ring-1",
+                  busyLogout
+                    ? "bg-white/10 text-white/60 ring-white/15 opacity-60"
+                    : "bg-white/10 text-white ring-white/15 hover:bg-white/15",
+                ].join(" ")}
+                title={status?.email || "Log out"}
+              >
+                {busyLogout ? "Logging out..." : "Log out"}
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        {/* Account + membership */}
+        {/* Account */}
         <div className="mt-8 rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-          <div className="text-lg font-semibold">Account</div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-lg font-semibold">Account</div>
+              <div className="mt-1 text-sm text-white/65">
+                Log in with the same email you used for membership purchases.
+              </div>
+            </div>
+
+            {loggedIn ? (
+              <div className="hidden sm:block rounded-2xl bg-black/30 px-3 py-2 text-xs text-white/70 ring-1 ring-white/10">
+                Signed in as <span className="text-white">{status?.email}</span>
+              </div>
+            ) : null}
+          </div>
 
           {loading ? (
             <div className="mt-4 text-sm text-white/70">Loading…</div>
@@ -277,18 +316,16 @@ export default function DashboardPage() {
 
               <div className="rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
                 <div className="text-xs text-white/60">Membership</div>
-                <div className="mt-1 text-sm font-semibold">
-                  {isMember ? "Active" : "Not active"}
-                </div>
+                <div className="mt-1 text-sm font-semibold">{isMember ? "Active" : "Not active"}</div>
                 <div className="mt-1 text-xs text-white/60">
                   Plan: {status.plan ?? "—"} • Expires: {fmt(status.expires_at)}
                 </div>
               </div>
 
               <div className="md:col-span-2 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10">
-                <div className="text-xs text-white/60">What your account does</div>
+                <div className="text-xs text-white/60">How access works</div>
                 <div className="mt-1 text-sm text-white/70">
-                  If you subscribe with this email, your membership will unlock instant downloads automatically.
+                  If you subscribe with this email, membership unlocks instant downloads automatically.
                   Non-members can still purchase individual tracks anytime.
                 </div>
 
@@ -318,7 +355,7 @@ export default function DashboardPage() {
               <div>
                 <div className="text-lg font-semibold">Purchases</div>
                 <p className="mt-1 text-sm text-white/65">
-                  Your past purchases. Keep your Paystack reference — it’s used for recovery.
+                  Your Paystack reference is shown here for records. Recovery is time-limited after purchase.
                 </p>
               </div>
 
@@ -383,9 +420,7 @@ export default function DashboardPage() {
                                 ))
                               )}
                               {itemsArr.length > 4 ? (
-                                <div className="text-xs text-white/60">
-                                  +{itemsArr.length - 4} more
-                                </div>
+                                <div className="text-xs text-white/60">+{itemsArr.length - 4} more</div>
                               ) : null}
                             </div>
                           </td>
@@ -401,7 +436,7 @@ export default function DashboardPage() {
                 </table>
 
                 <p className="mt-3 text-xs text-white/50">
-                  Recovery window: downloads are available for a limited time after purchase. Keep your reference safe.
+                  Note: recovery/download access is time-limited after purchase. Always keep your reference safe.
                 </p>
               </div>
             )}
