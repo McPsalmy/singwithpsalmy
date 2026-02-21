@@ -20,18 +20,14 @@ function getExt(name: string) {
 function isLikelyImage(fileType: string, name: string) {
   const t = (fileType || "").toLowerCase();
   if (t.startsWith("image/")) return true;
-
-  // fallback to extension when type is empty/generic
   const ext = getExt(name);
   return ["jpg", "jpeg", "png", "webp"].includes(ext);
 }
 
 function isLikelyVideo(fileType: string, name: string) {
   const t = (fileType || "").toLowerCase();
-  if (t.includes("video/")) return true;
-  if (t === "application/octet-stream") return true; // common generic type for uploads
-
-  // fallback to extension when type is empty/generic
+  if (t.startsWith("video/")) return true;
+  if (t === "application/octet-stream") return true;
   const ext = getExt(name);
   return ["mp4", "m4v"].includes(ext);
 }
@@ -39,22 +35,27 @@ function isLikelyVideo(fileType: string, name: string) {
 function coverContentTypeFromExt(ext: string) {
   if (ext === "png") return "image/png";
   if (ext === "webp") return "image/webp";
-  // jpg/jpeg default
-  return "image/jpeg";
+  return "image/jpeg"; // jpg/jpeg default
 }
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function POST(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
     if (!supabaseUrl) {
-      return NextResponse.json({ ok: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" },
+        { status: 500 }
+      );
     }
     if (!serviceRoleKey) {
-      return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" },
+        { status: 500 }
+      );
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -105,13 +106,14 @@ export async function POST(req: Request) {
     }
 
     const bucket = "media";
+
+    // Determine path + content type
     let path = "";
     let contentType = "";
 
     if (kind === "cover") {
       const extRaw = getExt(originalName) || "jpg";
       const safeExt = ["jpg", "jpeg", "png", "webp"].includes(extRaw) ? extRaw : "jpg";
-
       path = `covers/${slug}.${safeExt}`;
       contentType = coverContentTypeFromExt(safeExt);
     } else {
@@ -119,12 +121,14 @@ export async function POST(req: Request) {
         kind === "preview"
           ? `previews/${slug}-${version}-preview_web.mp4`
           : `full/${slug}-${version}-full.mp4`;
-
-      // Force mp4 content type for consistency
       contentType = "video/mp4";
     }
 
-    const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    // ✅ Critical fix: upload raw bytes (more reliable on Next/Vercel)
+    const ab = await file.arrayBuffer();
+    const bytes = new Uint8Array(ab);
+
+    const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
       upsert: true,
       contentType,
       cacheControl: "3600",
@@ -133,7 +137,7 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json(
         { ok: false, error: error.message, path, bucket, kind, version },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -144,7 +148,7 @@ export async function POST(req: Request) {
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }
