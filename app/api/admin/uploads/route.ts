@@ -11,22 +11,50 @@ function isKind(k: any): k is KindKey {
   return k === "preview" || k === "full" || k === "cover";
 }
 
+function getExt(name: string) {
+  const n = (name || "").trim();
+  if (!n.includes(".")) return "";
+  return n.split(".").pop()!.toLowerCase();
+}
+
+function isLikelyImage(fileType: string, name: string) {
+  const t = (fileType || "").toLowerCase();
+  if (t.startsWith("image/")) return true;
+
+  // fallback to extension when type is empty/generic
+  const ext = getExt(name);
+  return ["jpg", "jpeg", "png", "webp"].includes(ext);
+}
+
+function isLikelyVideo(fileType: string, name: string) {
+  const t = (fileType || "").toLowerCase();
+  if (t.includes("video/")) return true;
+  if (t === "application/octet-stream") return true; // common generic type for uploads
+
+  // fallback to extension when type is empty/generic
+  const ext = getExt(name);
+  return ["mp4", "m4v"].includes(ext);
+}
+
+function coverContentTypeFromExt(ext: string) {
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  // jpg/jpeg default
+  return "image/jpeg";
+}
+
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
     if (!supabaseUrl) {
-      return NextResponse.json(
-        { ok: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing NEXT_PUBLIC_SUPABASE_URL" }, { status: 500 });
     }
     if (!serviceRoleKey) {
-      return NextResponse.json(
-        { ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -38,15 +66,11 @@ export async function POST(req: Request) {
     const slug = String(form.get("slug") || "").trim();
     const version = String(form.get("version") || "").trim();
     const kind = String(form.get("kind") || "").trim();
-    const filename = String(form.get("filename") || "").trim();
+    const filenameFromForm = String(form.get("filename") || "").trim();
     const file = form.get("file");
 
-    if (!slug) {
-      return NextResponse.json({ ok: false, error: "Missing slug" }, { status: 400 });
-    }
-    if (!isKind(kind)) {
-      return NextResponse.json({ ok: false, error: "Invalid kind" }, { status: 400 });
-    }
+    if (!slug) return NextResponse.json({ ok: false, error: "Missing slug" }, { status: 400 });
+    if (!isKind(kind)) return NextResponse.json({ ok: false, error: "Invalid kind" }, { status: 400 });
     if (kind !== "cover" && !isVersion(version)) {
       return NextResponse.json({ ok: false, error: "Invalid version" }, { status: 400 });
     }
@@ -54,31 +78,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing file" }, { status: 400 });
     }
 
-    // Validate type
+    // Use filename from form OR fallback to File.name
+    const originalName = filenameFromForm || file.name || "";
+
+    // Validate type (robust)
     if (kind === "cover") {
-      const t = String(file.type || "");
-      if (!t.startsWith("image/")) {
-        return NextResponse.json({ ok: false, error: "Cover must be an image" }, { status: 400 });
+      if (!isLikelyImage(file.type, originalName)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Cover must be an image (jpg/jpeg/png/webp). Got type="${file.type || "unknown"}" name="${originalName}"`,
+          },
+          { status: 400 }
+        );
       }
     } else {
-      if (!String(file.type || "").includes("video")) {
-        return NextResponse.json({ ok: false, error: "File must be a video" }, { status: 400 });
+      if (!isLikelyVideo(file.type, originalName)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `File must be an MP4 video. Got type="${file.type || "unknown"}" name="${originalName}"`,
+          },
+          { status: 400 }
+        );
       }
     }
 
     const bucket = "media";
-
     let path = "";
-    let contentType = file.type || (kind === "cover" ? "image/jpeg" : "video/mp4");
+    let contentType = "";
 
     if (kind === "cover") {
-      const ext =
-        filename && filename.includes(".")
-          ? filename.split(".").pop()!.toLowerCase()
-          : "jpg";
+      const extRaw = getExt(originalName) || "jpg";
+      const safeExt = ["jpg", "jpeg", "png", "webp"].includes(extRaw) ? extRaw : "jpg";
 
-      const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
       path = `covers/${slug}.${safeExt}`;
+      contentType = coverContentTypeFromExt(safeExt);
     } else {
       path =
         kind === "preview"
@@ -89,7 +124,6 @@ export async function POST(req: Request) {
       contentType = "video/mp4";
     }
 
-    // ✅ ACTUAL UPLOAD
     const { error } = await supabase.storage.from(bucket).upload(path, file, {
       upsert: true,
       contentType,
@@ -97,10 +131,16 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: error.message, path, bucket, kind, version },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ ok: true, path, bucket });
+    return NextResponse.json(
+      { ok: true, path, bucket, kind, version },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
