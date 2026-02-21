@@ -8,6 +8,10 @@ export function supabaseClient() {
   if (!anonKey) throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   return createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
   });
 }

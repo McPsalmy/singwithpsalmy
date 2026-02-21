@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabaseClient } from "../lib/supabaseClient";
 
 type VersionKey = "full-guide" | "instrumental" | "low-guide";
 type KindKey = "preview" | "full" | "cover";
@@ -21,6 +22,15 @@ type Row = {
   label: string;
   help: string;
   accept: string;
+};
+
+type SignedResp = {
+  ok: boolean;
+  bucket?: string;
+  path?: string;
+  token?: string;
+  contentType?: string;
+  error?: string;
 };
 
 export default function UploadSlots({ slug }: { slug: string }) {
@@ -45,28 +55,68 @@ export default function UploadSlots({ slug }: { slug: string }) {
         accept: "image/*",
       },
 
-      { key: "preview-full-guide", kind: "preview", version: "full-guide", label: "Preview — Practice track", help: "30s watermark MP4", accept: "video/mp4,video/*" },
-      { key: "preview-instrumental", kind: "preview", version: "instrumental", label: "Preview — Performance version", help: "30s watermark MP4", accept: "video/mp4,video/*" },
-      { key: "preview-low-guide", kind: "preview", version: "low-guide", label: "Preview — Reduced vocals", help: "30s watermark MP4", accept: "video/mp4,video/*" },
+      {
+        key: "preview-full-guide",
+        kind: "preview",
+        version: "full-guide",
+        label: "Preview — Practice track",
+        help: "30s watermark MP4",
+        accept: "video/mp4,video/*",
+      },
+      {
+        key: "preview-instrumental",
+        kind: "preview",
+        version: "instrumental",
+        label: "Preview — Performance version",
+        help: "30s watermark MP4",
+        accept: "video/mp4,video/*",
+      },
+      {
+        key: "preview-low-guide",
+        kind: "preview",
+        version: "low-guide",
+        label: "Preview — Reduced vocals",
+        help: "30s watermark MP4",
+        accept: "video/mp4,video/*",
+      },
 
-      { key: "full-full-guide", kind: "full", version: "full-guide", label: "Full — Practice track", help: "Full MP4", accept: "video/mp4,video/*" },
-      { key: "full-instrumental", kind: "full", version: "instrumental", label: "Full — Performance version", help: "Full MP4", accept: "video/mp4,video/*" },
-      { key: "full-low-guide", kind: "full", version: "low-guide", label: "Full — Reduced vocals", help: "Full MP4", accept: "video/mp4,video/*" },
+      {
+        key: "full-full-guide",
+        kind: "full",
+        version: "full-guide",
+        label: "Full — Practice track",
+        help: "Full MP4",
+        accept: "video/mp4,video/*",
+      },
+      {
+        key: "full-instrumental",
+        kind: "full",
+        version: "instrumental",
+        label: "Full — Performance version",
+        help: "Full MP4",
+        accept: "video/mp4,video/*",
+      },
+      {
+        key: "full-low-guide",
+        kind: "full",
+        version: "low-guide",
+        label: "Full — Reduced vocals",
+        help: "Full MP4",
+        accept: "video/mp4,video/*",
+      },
     ],
     []
   );
 
   function filePathForRow(row: Row) {
-    if (row.kind === "cover") return coverPath; // server will tell us exact ext path
+    if (row.kind === "cover") return coverPath; // server tells us exact ext path
     if (row.kind === "preview") return `previews/${slug}-${row.version}-preview_web.mp4`;
     return `full/${slug}-${row.version}-full.mp4`;
   }
 
   function isUploaded(row: Row) {
-    // UI-first (instant)
     if (uploadedKeys[row.key]) return true;
 
-    // fallback to server truth
     if (!status?.ok) return false;
 
     if (row.kind === "cover") return !!status.cover;
@@ -93,25 +143,21 @@ export default function UploadSlots({ slug }: { slug: string }) {
       setStatus(out);
       setCoverPath(out.cover ?? null);
 
-      // Merge server truth INTO local truth (never downgrade).
-// This avoids "flash green then revert" due to storage list propagation delay.
-const serverTrue: Record<string, boolean> = {};
-for (const r of rows) {
-  if (r.kind === "cover") serverTrue[r.key] = !!out.cover;
-  if (r.kind === "preview" && r.version) serverTrue[r.key] = !!out.preview?.[r.version];
-  if (r.kind === "full" && r.version) serverTrue[r.key] = !!out.full?.[r.version];
-}
+      // Merge server truth INTO local truth (never downgrade)
+      const serverTrue: Record<string, boolean> = {};
+      for (const r of rows) {
+        if (r.kind === "cover") serverTrue[r.key] = !!out.cover;
+        if (r.kind === "preview" && r.version) serverTrue[r.key] = !!out.preview?.[r.version];
+        if (r.kind === "full" && r.version) serverTrue[r.key] = !!out.full?.[r.version];
+      }
 
-// Only set keys to true when server confirms.
-// Do NOT set keys to false here.
-setUploadedKeys((prev) => {
-  const merged = { ...prev };
-  for (const k of Object.keys(serverTrue)) {
-    if (serverTrue[k]) merged[k] = true;
-  }
-  return merged;
-});
-
+      setUploadedKeys((prev) => {
+        const merged = { ...prev };
+        for (const k of Object.keys(serverTrue)) {
+          if (serverTrue[k]) merged[k] = true;
+        }
+        return merged;
+      });
     } catch (e: any) {
       setStatus(null);
       setStatusError(e?.message || "Could not load upload status");
@@ -119,7 +165,6 @@ setUploadedKeys((prev) => {
   }
 
   useEffect(() => {
-    // reset local UI state for this slug
     setUploadedKeys({});
     setCoverPath(null);
     refreshStatus();
@@ -129,55 +174,59 @@ setUploadedKeys((prev) => {
   async function upload(row: Row, file: File) {
     setBusyKey(row.key);
 
-    const fd = new FormData();
-    fd.append("slug", slug);
-    fd.append("kind", row.kind);
+    try {
+      // 1) Get signed token + target path from server
+      const signRes = await fetch("/api/admin/uploads/signed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          kind: row.kind,
+          version: row.kind === "cover" ? null : row.version,
+          filename: file.name,
+        }),
+      });
 
-    if (row.kind !== "cover") {
-      fd.append("version", String(row.version));
-    } else {
-      fd.append("filename", file.name);
+      const signOut = (await signRes.json().catch(() => ({}))) as SignedResp;
+
+      if (!signRes.ok || !signOut?.ok || !signOut?.path || !signOut?.token) {
+        console.error("SIGNED_UPLOAD_TOKEN_FAIL", { status: signRes.status, signOut });
+        alert(signOut?.error || `Could not get signed upload token (HTTP ${signRes.status}).`);
+        return;
+      }
+
+      const bucket = String(signOut.bucket || "media");
+      const path = String(signOut.path);
+      const token = String(signOut.token);
+      const contentType = String(signOut.contentType || file.type || "");
+
+      // 2) Upload directly to Supabase Storage (bypasses Vercel 413)
+      const supabase = supabaseClient();
+      const { error } = await supabase.storage.from(bucket).uploadToSignedUrl(path, token, file, {
+        contentType,
+        upsert: true,
+      });
+
+      if (error) {
+        console.error("UPLOAD_TO_SIGNED_URL_FAIL", error);
+        alert(error.message || "Upload failed.");
+        return;
+      }
+
+      // ✅ Instant UI update
+      setUploadedKeys((prev) => ({ ...prev, [row.key]: true }));
+      if (row.kind === "cover") setCoverPath(path);
+
+      setToast(`Uploaded ✓ ${row.label}`);
+      setTimeout(() => setToast(null), 1400);
+
+      refreshStatus();
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "Upload failed.");
+    } finally {
+      setBusyKey(null);
     }
-
-    fd.append("file", file);
-
-    const res = await fetch("/api/admin/uploads", { method: "POST", body: fd });
-
-// Try JSON first, but fall back to raw text
-let out: any = null;
-let raw = "";
-try {
-  raw = await res.text();
-  out = raw ? JSON.parse(raw) : null;
-} catch {
-  // raw stays as text if not JSON
-}
-
-setBusyKey(null);
-
-if (!res.ok || !out?.ok) {
-  console.error("UPLOAD_FAIL", { status: res.status, raw, out });
-  alert(
-    `Upload failed.\n\nHTTP ${res.status}\n\n` +
-      (out?.error ? `Error: ${out.error}\n\n` : "") +
-      (raw ? `Raw: ${raw.slice(0, 600)}` : "No response body")
-  );
-  return;
-}
-
-    // ✅ Instant UI update
-    setUploadedKeys((prev) => ({ ...prev, [row.key]: true }));
-
-    // Cover path returned?
-    if (row.kind === "cover" && out?.path) {
-      setCoverPath(String(out.path));
-    }
-
-    setToast(`Uploaded ✓ ${row.label}`);
-    setTimeout(() => setToast(null), 1400);
-
-    // also refresh server truth
-    refreshStatus();
   }
 
   async function deleteFile(row: Row) {
@@ -207,7 +256,6 @@ if (!res.ok || !out?.ok) {
       return;
     }
 
-    // ✅ Instant UI update
     setUploadedKeys((prev) => ({ ...prev, [row.key]: false }));
     if (row.kind === "cover") setCoverPath(null);
 
@@ -221,7 +269,7 @@ if (!res.ok || !out?.ok) {
     <div className="mt-8 rounded-3xl bg-black/30 p-6 ring-1 ring-white/10">
       <div className="text-lg font-semibold">Uploads</div>
       <p className="mt-2 text-sm text-white/65">
-        Upload cover tile + previews and full MP4 videos. Slots update immediately after successful upload.
+        Upload cover tile + previews and full MP4 videos. Large files upload directly to Supabase (no Vercel limits).
       </p>
 
       {statusError ? (
@@ -246,7 +294,7 @@ if (!res.ok || !out?.ok) {
 
           const pathDisplay =
             row.kind === "cover"
-              ? (coverPath ?? `covers/${slug}.jpg (or .png/.webp)`)
+              ? coverPath ?? `covers/${slug}.jpg (or .png/.webp)`
               : filePathForRow(row);
 
           return (
