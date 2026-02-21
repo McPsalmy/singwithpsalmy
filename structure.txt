@@ -6,6 +6,7 @@ C:.
 ¦   .gitignore
 ¦   eslint.config.mjs
 ¦   IDEAS_BACKLOG.md
+¦   middleware.ts
 ¦   next-env.d.ts
 ¦   next.config.js
 ¦   package-lock.json
@@ -18,18 +19,9 @@ C:.
 ¦   
 +---.next
 ¦   ¦   app-build-manifest.json
-¦   ¦   app-path-routes-manifest.json
 ¦   ¦   build-manifest.json
-¦   ¦   BUILD_ID
-¦   ¦   export-marker.json
-¦   ¦   images-manifest.json
-¦   ¦   next-minimal-server.js.nft.json
-¦   ¦   next-server.js.nft.json
 ¦   ¦   package.json
-¦   ¦   prerender-manifest.json
 ¦   ¦   react-loadable-manifest.json
-¦   ¦   required-server-files.json
-¦   ¦   routes-manifest.json
 ¦   ¦   trace
 ¦   ¦   
 ¦   +---cache
@@ -48,6 +40,7 @@ C:.
 ¦   ¦       +---client-development
 ¦   ¦       ¦       0.pack.gz
 ¦   ¦       ¦       index.pack.gz
+¦   ¦       ¦       index.pack.gz.old
 ¦   ¦       ¦       
 ¦   ¦       +---client-production
 ¦   ¦       ¦       0.pack
@@ -71,707 +64,28 @@ C:.
 ¦   ¦               index.pack.old
 ¦   ¦               
 ¦   +---server
-¦   ¦   ¦   app-paths-manifest.json
-¦   ¦   ¦   font-manifest.json
-¦   ¦   ¦   functions-config-manifest.json
-¦   ¦   ¦   interception-route-rewrite-manifest.js
-¦   ¦   ¦   middleware-build-manifest.js
-¦   ¦   ¦   middleware-manifest.json
-¦   ¦   ¦   middleware-react-loadable-manifest.js
-¦   ¦   ¦   next-font-manifest.js
-¦   ¦   ¦   next-font-manifest.json
-¦   ¦   ¦   pages-manifest.json
-¦   ¦   ¦   server-reference-manifest.js
-¦   ¦   ¦   server-reference-manifest.json
-¦   ¦   ¦   webpack-runtime.js
-¦   ¦   ¦   
-¦   ¦   +---app
-¦   ¦   ¦   ¦   browse.html
-¦   ¦   ¦   ¦   browse.meta
-¦   ¦   ¦   ¦   browse.rsc
-¦   ¦   ¦   ¦   cart.html
-¦   ¦   ¦   ¦   cart.meta
-¦   ¦   ¦   ¦   cart.rsc
-¦   ¦   ¦   ¦   dashboard.html
-¦   ¦   ¦   ¦   dashboard.meta
-¦   ¦   ¦   ¦   dashboard.rsc
-¦   ¦   ¦   ¦   dmca.html
-¦   ¦   ¦   ¦   dmca.meta
-¦   ¦   ¦   ¦   dmca.rsc
-¦   ¦   ¦   ¦   favicon.ico.body
-¦   ¦   ¦   ¦   favicon.ico.meta
-¦   ¦   ¦   ¦   icon.svg.body
-¦   ¦   ¦   ¦   icon.svg.meta
-¦   ¦   ¦   ¦   membership.html
-¦   ¦   ¦   ¦   membership.meta
-¦   ¦   ¦   ¦   membership.rsc
-¦   ¦   ¦   ¦   page.js
-¦   ¦   ¦   ¦   page.js.nft.json
-¦   ¦   ¦   ¦   page_client-reference-manifest.js
-¦   ¦   ¦   ¦   psalmy.html
-¦   ¦   ¦   ¦   psalmy.meta
-¦   ¦   ¦   ¦   psalmy.rsc
-¦   ¦   ¦   ¦   recover.html
-¦   ¦   ¦   ¦   recover.meta
-¦   ¦   ¦   ¦   recover.rsc
-¦   ¦   ¦   ¦   request.html
-¦   ¦   ¦   ¦   request.meta
-¦   ¦   ¦   ¦   request.rsc
-¦   ¦   ¦   ¦   reset-password.html
-¦   ¦   ¦   ¦   reset-password.meta
-¦   ¦   ¦   ¦   reset-password.rsc
-¦   ¦   ¦   ¦   rights-holder.html
-¦   ¦   ¦   ¦   rights-holder.meta
-¦   ¦   ¦   ¦   rights-holder.rsc
-¦   ¦   ¦   ¦   robots.txt.body
-¦   ¦   ¦   ¦   robots.txt.meta
-¦   ¦   ¦   ¦   signin.html
-¦   ¦   ¦   ¦   signin.meta
-¦   ¦   ¦   ¦   signin.rsc
-¦   ¦   ¦   ¦   signup.html
-¦   ¦   ¦   ¦   signup.meta
-¦   ¦   ¦   ¦   signup.rsc
-¦   ¦   ¦   ¦   sitemap.xml.body
-¦   ¦   ¦   ¦   sitemap.xml.meta
-¦   ¦   ¦   ¦   update-password.html
-¦   ¦   ¦   ¦   update-password.meta
-¦   ¦   ¦   ¦   update-password.rsc
-¦   ¦   ¦   ¦   _not-found.html
-¦   ¦   ¦   ¦   _not-found.meta
-¦   ¦   ¦   ¦   _not-found.rsc
-¦   ¦   ¦   ¦   
-¦   ¦   ¦   +---admin
-¦   ¦   ¦   ¦   ¦   memberships.html
-¦   ¦   ¦   ¦   ¦   memberships.meta
-¦   ¦   ¦   ¦   ¦   memberships.rsc
-¦   ¦   ¦   ¦   ¦   requests.html
-¦   ¦   ¦   ¦   ¦   requests.meta
-¦   ¦   ¦   ¦   ¦   requests.rsc
-¦   ¦   ¦   ¦   ¦   tracks.html
-¦   ¦   ¦   ¦   ¦   tracks.meta
-¦   ¦   ¦   ¦   ¦   tracks.rsc
-¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   +---memberships
-¦   ¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---requests
-¦   ¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---tracks
-¦   ¦   ¦   ¦       ¦   new.html
-¦   ¦   ¦   ¦       ¦   new.meta
-¦   ¦   ¦   ¦       ¦   new.rsc
-¦   ¦   ¦   ¦       ¦   page.js
-¦   ¦   ¦   ¦       ¦   page.js.nft.json
-¦   ¦   ¦   ¦       ¦   page_client-reference-manifest.js
-¦   ¦   ¦   ¦       ¦   
-¦   ¦   ¦   ¦       +---new
-¦   ¦   ¦   ¦       ¦       page.js
-¦   ¦   ¦   ¦       ¦       page.js.nft.json
-¦   ¦   ¦   ¦       ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦       +---[id]
-¦   ¦   ¦   ¦               page.js
-¦   ¦   ¦   ¦               page.js.nft.json
-¦   ¦   ¦   ¦               page_client-reference-manifest.js
-¦   ¦   ¦   ¦               
-¦   ¦   ¦   +---api
-¦   ¦   ¦   ¦   +---admin
-¦   ¦   ¦   ¦   ¦   ¦   tracks.body
-¦   ¦   ¦   ¦   ¦   ¦   tracks.meta
-¦   ¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   ¦   +---auth
-¦   ¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   +---memberships
-¦   ¦   ¦   ¦   ¦   ¦   +---list
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   ¦   +---recompute
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   ¦   +---refund
-¦   ¦   ¦   ¦   ¦   ¦           route.js
-¦   ¦   ¦   ¦   ¦   ¦           route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   ¦   +---requests
-¦   ¦   ¦   ¦   ¦   ¦   ¦   route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦   route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   ¦   ¦   +---status
-¦   ¦   ¦   ¦   ¦   ¦           route.js
-¦   ¦   ¦   ¦   ¦   ¦           route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   ¦   +---storage
-¦   ¦   ¦   ¦   ¦   ¦   +---signed-url
-¦   ¦   ¦   ¦   ¦   ¦           route.js
-¦   ¦   ¦   ¦   ¦   ¦           route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   ¦   +---tracks
-¦   ¦   ¦   ¦   ¦   ¦   ¦   route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦   route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   ¦   ¦   +---create
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   ¦   +---delete
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   ¦   +---toggle-active
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   ¦   +---[id]
-¦   ¦   ¦   ¦   ¦   ¦           route.js
-¦   ¦   ¦   ¦   ¦   ¦           route.js.nft.json
-¦   ¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   ¦   +---uploads
-¦   ¦   ¦   ¦   ¦       ¦   route.js
-¦   ¦   ¦   ¦   ¦       ¦   route.js.nft.json
-¦   ¦   ¦   ¦   ¦       ¦   
-¦   ¦   ¦   ¦   ¦       +---delete
-¦   ¦   ¦   ¦   ¦       ¦       route.js
-¦   ¦   ¦   ¦   ¦       ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦   ¦       +---status
-¦   ¦   ¦   ¦   ¦               route.js
-¦   ¦   ¦   ¦   ¦               route.js.nft.json
-¦   ¦   ¦   ¦   ¦               
-¦   ¦   ¦   ¦   +---dashboard
-¦   ¦   ¦   ¦   ¦   +---orders
-¦   ¦   ¦   ¦   ¦           route.js
-¦   ¦   ¦   ¦   ¦           route.js.nft.json
-¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   +---notify-fulfilled
-¦   ¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---payments
-¦   ¦   ¦   ¦   ¦   +---paystack
-¦   ¦   ¦   ¦   ¦       +---initialize
-¦   ¦   ¦   ¦   ¦       ¦       route.js
-¦   ¦   ¦   ¦   ¦       ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦   ¦       +---initialize-membership
-¦   ¦   ¦   ¦   ¦       ¦       route.js
-¦   ¦   ¦   ¦   ¦       ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦   ¦       +---verify
-¦   ¦   ¦   ¦   ¦       ¦       route.js
-¦   ¦   ¦   ¦   ¦       ¦       route.js.nft.json
-¦   ¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦   ¦       +---webhook
-¦   ¦   ¦   ¦   ¦               route.js
-¦   ¦   ¦   ¦   ¦               route.js.nft.json
-¦   ¦   ¦   ¦   ¦               
-¦   ¦   ¦   ¦   +---public
-¦   ¦   ¦   ¦       +---auth
-¦   ¦   ¦   ¦       ¦   +---logout
-¦   ¦   ¦   ¦       ¦           route.js
-¦   ¦   ¦   ¦       ¦           route.js.nft.json
-¦   ¦   ¦   ¦       ¦           
-¦   ¦   ¦   ¦       +---cover-url
-¦   ¦   ¦   ¦       ¦       route.js
-¦   ¦   ¦   ¦       ¦       route.js.nft.json
-¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦       +---membership
-¦   ¦   ¦   ¦       ¦   +---status
-¦   ¦   ¦   ¦       ¦           route.js
-¦   ¦   ¦   ¦       ¦           route.js.nft.json
-¦   ¦   ¦   ¦       ¦           
-¦   ¦   ¦   ¦       +---orders
-¦   ¦   ¦   ¦       ¦   +---get
-¦   ¦   ¦   ¦       ¦           route.js
-¦   ¦   ¦   ¦       ¦           route.js.nft.json
-¦   ¦   ¦   ¦       ¦           
-¦   ¦   ¦   ¦       +---preview-url
-¦   ¦   ¦   ¦       ¦       route.js
-¦   ¦   ¦   ¦       ¦       route.js.nft.json
-¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦       +---tracks
-¦   ¦   ¦   ¦           ¦   route.js
-¦   ¦   ¦   ¦           ¦   route.js.nft.json
-¦   ¦   ¦   ¦           ¦   
-¦   ¦   ¦   ¦           +---download
-¦   ¦   ¦   ¦           ¦       route.js
-¦   ¦   ¦   ¦           ¦       route.js.nft.json
-¦   ¦   ¦   ¦           ¦       
-¦   ¦   ¦   ¦           +---full-url
-¦   ¦   ¦   ¦           ¦       route.js
-¦   ¦   ¦   ¦           ¦       route.js.nft.json
-¦   ¦   ¦   ¦           ¦       
-¦   ¦   ¦   ¦           +---increment-download
-¦   ¦   ¦   ¦           ¦       route.js
-¦   ¦   ¦   ¦           ¦       route.js.nft.json
-¦   ¦   ¦   ¦           ¦       
-¦   ¦   ¦   ¦           +---paid-download
-¦   ¦   ¦   ¦                   route.js
-¦   ¦   ¦   ¦                   route.js.nft.json
-¦   ¦   ¦   ¦                   
-¦   ¦   ¦   +---browse
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---cart
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---checkout
-¦   ¦   ¦   ¦   ¦   cart.html
-¦   ¦   ¦   ¦   ¦   cart.meta
-¦   ¦   ¦   ¦   ¦   cart.rsc
-¦   ¦   ¦   ¦   ¦   success.html
-¦   ¦   ¦   ¦   ¦   success.meta
-¦   ¦   ¦   ¦   ¦   success.rsc
-¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   +---cart
-¦   ¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---success
-¦   ¦   ¦   ¦           page.js
-¦   ¦   ¦   ¦           page.js.nft.json
-¦   ¦   ¦   ¦           page_client-reference-manifest.js
-¦   ¦   ¦   ¦           
-¦   ¦   ¦   +---dashboard
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---dmca
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---download
-¦   ¦   ¦   ¦   +---[slug]
-¦   ¦   ¦   ¦           page.js
-¦   ¦   ¦   ¦           page.js.nft.json
-¦   ¦   ¦   ¦           page_client-reference-manifest.js
-¦   ¦   ¦   ¦           
-¦   ¦   ¦   +---favicon.ico
-¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---icon.svg
-¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---membership
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---paystack
-¦   ¦   ¦   ¦   ¦   callback.html
-¦   ¦   ¦   ¦   ¦   callback.meta
-¦   ¦   ¦   ¦   ¦   callback.rsc
-¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   +---callback
-¦   ¦   ¦   ¦           page.js
-¦   ¦   ¦   ¦           page.js.nft.json
-¦   ¦   ¦   ¦           page_client-reference-manifest.js
-¦   ¦   ¦   ¦           
-¦   ¦   ¦   +---psalmy
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---recover
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---request
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---reset-password
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---rights-holder
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---robots.txt
-¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---signin
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---signup
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---sitemap.xml
-¦   ¦   ¦   ¦       route.js
-¦   ¦   ¦   ¦       route.js.nft.json
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---stem
-¦   ¦   ¦   ¦   +---[slug]
-¦   ¦   ¦   ¦           page.js
-¦   ¦   ¦   ¦           page.js.nft.json
-¦   ¦   ¦   ¦           page_client-reference-manifest.js
-¦   ¦   ¦   ¦           
-¦   ¦   ¦   +---track
-¦   ¦   ¦   ¦   +---[slug]
-¦   ¦   ¦   ¦           page.js
-¦   ¦   ¦   ¦           page.js.nft.json
-¦   ¦   ¦   ¦           page_client-reference-manifest.js
-¦   ¦   ¦   ¦           
-¦   ¦   ¦   +---update-password
-¦   ¦   ¦   ¦       page.js
-¦   ¦   ¦   ¦       page.js.nft.json
-¦   ¦   ¦   ¦       page_client-reference-manifest.js
-¦   ¦   ¦   ¦       
-¦   ¦   ¦   +---_not-found
-¦   ¦   ¦           page.js
-¦   ¦   ¦           page.js.nft.json
-¦   ¦   ¦           page_client-reference-manifest.js
-¦   ¦   ¦           
-¦   ¦   +---chunks
-¦   ¦   ¦       1021.js
-¦   ¦   ¦       1682.js
-¦   ¦   ¦       2518.js
-¦   ¦   ¦       3644.js
-¦   ¦   ¦       3946.js
-¦   ¦   ¦       5972.js
-¦   ¦   ¦       7857.js
-¦   ¦   ¦       8948.js
-¦   ¦   ¦       9702.js
-¦   ¦   ¦       font-manifest.json
-¦   ¦   ¦       
-¦   ¦   +---pages
-¦   ¦           404.html
-¦   ¦           500.html
-¦   ¦           _app.js
-¦   ¦           _app.js.nft.json
-¦   ¦           _document.js
-¦   ¦           _document.js.nft.json
-¦   ¦           _error.js
-¦   ¦           _error.js.nft.json
-¦   ¦           
+¦   ¦       app-paths-manifest.json
+¦   ¦       interception-route-rewrite-manifest.js
+¦   ¦       middleware-build-manifest.js
+¦   ¦       middleware-manifest.json
+¦   ¦       middleware-react-loadable-manifest.js
+¦   ¦       next-font-manifest.js
+¦   ¦       next-font-manifest.json
+¦   ¦       pages-manifest.json
+¦   ¦       server-reference-manifest.js
+¦   ¦       server-reference-manifest.json
+¦   ¦       
 ¦   +---static
-¦   ¦   +---01BopmYE29lw5vDG-yve-
-¦   ¦   ¦       _buildManifest.js
-¦   ¦   ¦       _ssgManifest.js
-¦   ¦   ¦       
 ¦   ¦   +---chunks
-¦   ¦   ¦   ¦   117-14dd35a9dd2203e1.js
-¦   ¦   ¦   ¦   635-c761875f7cfcb3de.js
-¦   ¦   ¦   ¦   990-58c405744cf915b3.js
-¦   ¦   ¦   ¦   fd9d1056-e3d373074663785d.js
-¦   ¦   ¦   ¦   framework-9eadeb889246d735.js
-¦   ¦   ¦   ¦   main-991cf98c264e4734.js
-¦   ¦   ¦   ¦   main-app-b72395ca43740334.js
-¦   ¦   ¦   ¦   polyfills-42372ed130431b0a.js
-¦   ¦   ¦   ¦   webpack-03f7c6bc932ce1e3.js
-¦   ¦   ¦   ¦   
-¦   ¦   ¦   +---app
-¦   ¦   ¦   ¦   ¦   layout-992b57cd56329f73.js
-¦   ¦   ¦   ¦   ¦   page-734ae5989a3305c0.js
-¦   ¦   ¦   ¦   ¦   
-¦   ¦   ¦   ¦   +---admin
-¦   ¦   ¦   ¦   ¦   +---memberships
-¦   ¦   ¦   ¦   ¦   ¦       page-23c285e1bf1b31ac.js
-¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   +---requests
-¦   ¦   ¦   ¦   ¦   ¦       page-73be1ea157d8e6f6.js
-¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   +---tracks
-¦   ¦   ¦   ¦   ¦       ¦   page-20f17cc030aa1c63.js
-¦   ¦   ¦   ¦   ¦       ¦   
-¦   ¦   ¦   ¦   ¦       +---new
-¦   ¦   ¦   ¦   ¦       ¦       page-d25052f4281e06f8.js
-¦   ¦   ¦   ¦   ¦       ¦       
-¦   ¦   ¦   ¦   ¦       +---[id]
-¦   ¦   ¦   ¦   ¦               page-acff9952c5ed9691.js
-¦   ¦   ¦   ¦   ¦               
-¦   ¦   ¦   ¦   +---browse
-¦   ¦   ¦   ¦   ¦       layout-1021e4de8f5c8197.js
-¦   ¦   ¦   ¦   ¦       page-269d1d4af05329dd.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---cart
-¦   ¦   ¦   ¦   ¦       page-8025a6db99303f07.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---checkout
-¦   ¦   ¦   ¦   ¦   +---cart
-¦   ¦   ¦   ¦   ¦   ¦       page-578cdc22d9e60803.js
-¦   ¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   ¦   +---success
-¦   ¦   ¦   ¦   ¦           page-d320beef9a3613bf.js
-¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   +---dashboard
-¦   ¦   ¦   ¦   ¦       page-d6598133a5631223.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---dmca
-¦   ¦   ¦   ¦   ¦       page-2ec2e72cca75d755.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---download
-¦   ¦   ¦   ¦   ¦   +---[slug]
-¦   ¦   ¦   ¦   ¦           page-1b9cb714441eb320.js
-¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   +---membership
-¦   ¦   ¦   ¦   ¦       page-659b1ce74d70553d.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---paystack
-¦   ¦   ¦   ¦   ¦   +---callback
-¦   ¦   ¦   ¦   ¦           page-d97e213701d93a99.js
-¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   +---psalmy
-¦   ¦   ¦   ¦   ¦       page-935bbc8835cbd6b5.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---recover
-¦   ¦   ¦   ¦   ¦       page-27c84dcdb2da171b.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---request
-¦   ¦   ¦   ¦   ¦       layout-a863679300371da2.js
-¦   ¦   ¦   ¦   ¦       page-c0e5cfd6424824ea.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---reset-password
-¦   ¦   ¦   ¦   ¦       page-e4d9537ec10c6ea9.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---rights-holder
-¦   ¦   ¦   ¦   ¦       page-0493f09b4fd11461.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---signin
-¦   ¦   ¦   ¦   ¦       page-c3a22afc4d4b05e8.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---signup
-¦   ¦   ¦   ¦   ¦       page-d331fe3011dd11e3.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---stem
-¦   ¦   ¦   ¦   ¦   +---[slug]
-¦   ¦   ¦   ¦   ¦           page-10f2beef7874b9e5.js
-¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   +---track
-¦   ¦   ¦   ¦   ¦   +---[slug]
-¦   ¦   ¦   ¦   ¦           page-b2bf1e11211cb180.js
-¦   ¦   ¦   ¦   ¦           
-¦   ¦   ¦   ¦   +---update-password
-¦   ¦   ¦   ¦   ¦       page-150c5cfbcb9d24ff.js
-¦   ¦   ¦   ¦   ¦       
-¦   ¦   ¦   ¦   +---_not-found
-¦   ¦   ¦   ¦           page-d97650ebbcbddad0.js
-¦   ¦   ¦   ¦           
-¦   ¦   ¦   +---pages
-¦   ¦   ¦           _app-1b6c2af2d071cfdf.js
-¦   ¦   ¦           _error-f8c0f998a44b9b46.js
-¦   ¦   ¦           
-¦   ¦   +---css
-¦   ¦           7e1696f60fa013b0.css
+¦   ¦   ¦       polyfills.js
+¦   ¦   ¦       
+¦   ¦   +---development
+¦   ¦           _buildManifest.js
+¦   ¦           _ssgManifest.js
 ¦   ¦           
 ¦   +---types
-¦       ¦   package.json
-¦       ¦   
-¦       +---app
-¦           ¦   layout.ts
-¦           ¦   page.ts
-¦           ¦   
-¦           +---admin
-¦           ¦   +---memberships
-¦           ¦   ¦       page.ts
-¦           ¦   ¦       
-¦           ¦   +---requests
-¦           ¦   ¦       page.ts
-¦           ¦   ¦       
-¦           ¦   +---tracks
-¦           ¦       ¦   page.ts
-¦           ¦       ¦   
-¦           ¦       +---new
-¦           ¦       ¦       page.ts
-¦           ¦       ¦       
-¦           ¦       +---[id]
-¦           ¦               page.ts
-¦           ¦               
-¦           +---api
-¦           ¦   +---admin
-¦           ¦   ¦   +---auth
-¦           ¦   ¦   ¦       route.ts
-¦           ¦   ¦   ¦       
-¦           ¦   ¦   +---memberships
-¦           ¦   ¦   ¦   +---list
-¦           ¦   ¦   ¦   ¦       route.ts
-¦           ¦   ¦   ¦   ¦       
-¦           ¦   ¦   ¦   +---recompute
-¦           ¦   ¦   ¦   ¦       route.ts
-¦           ¦   ¦   ¦   ¦       
-¦           ¦   ¦   ¦   +---refund
-¦           ¦   ¦   ¦           route.ts
-¦           ¦   ¦   ¦           
-¦           ¦   ¦   +---requests
-¦           ¦   ¦   ¦   ¦   route.ts
-¦           ¦   ¦   ¦   ¦   
-¦           ¦   ¦   ¦   +---status
-¦           ¦   ¦   ¦           route.ts
-¦           ¦   ¦   ¦           
-¦           ¦   ¦   +---storage
-¦           ¦   ¦   ¦   +---signed-url
-¦           ¦   ¦   ¦           route.ts
-¦           ¦   ¦   ¦           
-¦           ¦   ¦   +---tracks
-¦           ¦   ¦   ¦   ¦   route.ts
-¦           ¦   ¦   ¦   ¦   
-¦           ¦   ¦   ¦   +---create
-¦           ¦   ¦   ¦   ¦       route.ts
-¦           ¦   ¦   ¦   ¦       
-¦           ¦   ¦   ¦   +---delete
-¦           ¦   ¦   ¦   ¦       route.ts
-¦           ¦   ¦   ¦   ¦       
-¦           ¦   ¦   ¦   +---toggle-active
-¦           ¦   ¦   ¦   ¦       route.ts
-¦           ¦   ¦   ¦   ¦       
-¦           ¦   ¦   ¦   +---[id]
-¦           ¦   ¦   ¦           route.ts
-¦           ¦   ¦   ¦           
-¦           ¦   ¦   +---uploads
-¦           ¦   ¦       ¦   route.ts
-¦           ¦   ¦       ¦   
-¦           ¦   ¦       +---delete
-¦           ¦   ¦       ¦       route.ts
-¦           ¦   ¦       ¦       
-¦           ¦   ¦       +---status
-¦           ¦   ¦               route.ts
-¦           ¦   ¦               
-¦           ¦   +---dashboard
-¦           ¦   ¦   +---orders
-¦           ¦   ¦           route.ts
-¦           ¦   ¦           
-¦           ¦   +---notify-fulfilled
-¦           ¦   ¦       route.ts
-¦           ¦   ¦       
-¦           ¦   +---payments
-¦           ¦   ¦   +---paystack
-¦           ¦   ¦       +---initialize
-¦           ¦   ¦       ¦       route.ts
-¦           ¦   ¦       ¦       
-¦           ¦   ¦       +---initialize-membership
-¦           ¦   ¦       ¦       route.ts
-¦           ¦   ¦       ¦       
-¦           ¦   ¦       +---verify
-¦           ¦   ¦       ¦       route.ts
-¦           ¦   ¦       ¦       
-¦           ¦   ¦       +---webhook
-¦           ¦   ¦               route.ts
-¦           ¦   ¦               
-¦           ¦   +---public
-¦           ¦       +---auth
-¦           ¦       ¦   +---logout
-¦           ¦       ¦           route.ts
-¦           ¦       ¦           
-¦           ¦       +---cover-url
-¦           ¦       ¦       route.ts
-¦           ¦       ¦       
-¦           ¦       +---membership
-¦           ¦       ¦   +---status
-¦           ¦       ¦           route.ts
-¦           ¦       ¦           
-¦           ¦       +---orders
-¦           ¦       ¦   +---get
-¦           ¦       ¦           route.ts
-¦           ¦       ¦           
-¦           ¦       +---preview-url
-¦           ¦       ¦       route.ts
-¦           ¦       ¦       
-¦           ¦       +---tracks
-¦           ¦           ¦   route.ts
-¦           ¦           ¦   
-¦           ¦           +---download
-¦           ¦           ¦       route.ts
-¦           ¦           ¦       
-¦           ¦           +---full-url
-¦           ¦           ¦       route.ts
-¦           ¦           ¦       
-¦           ¦           +---increment-download
-¦           ¦           ¦       route.ts
-¦           ¦           ¦       
-¦           ¦           +---paid-download
-¦           ¦                   route.ts
-¦           ¦                   
-¦           +---browse
-¦           ¦       layout.ts
-¦           ¦       page.ts
-¦           ¦       
-¦           +---cart
-¦           ¦       page.ts
-¦           ¦       
-¦           +---checkout
-¦           ¦   +---cart
-¦           ¦   ¦       page.ts
-¦           ¦   ¦       
-¦           ¦   +---success
-¦           ¦           page.ts
-¦           ¦           
-¦           +---dashboard
-¦           ¦       page.ts
-¦           ¦       
-¦           +---dmca
-¦           ¦       page.ts
-¦           ¦       
-¦           +---download
-¦           ¦   +---[slug]
-¦           ¦           page.ts
-¦           ¦           
-¦           +---membership
-¦           ¦       page.ts
-¦           ¦       
-¦           +---paystack
-¦           ¦   +---callback
-¦           ¦           page.ts
-¦           ¦           
-¦           +---psalmy
-¦           ¦       page.ts
-¦           ¦       
-¦           +---recover
-¦           ¦       page.ts
-¦           ¦       
-¦           +---request
-¦           ¦       layout.ts
-¦           ¦       page.ts
-¦           ¦       
-¦           +---reset-password
-¦           ¦       page.ts
-¦           ¦       
-¦           +---rights-holder
-¦           ¦       page.ts
-¦           ¦       
-¦           +---signin
-¦           ¦       page.ts
-¦           ¦       
-¦           +---signup
-¦           ¦       page.ts
-¦           ¦       
-¦           +---stem
-¦           ¦   +---[slug]
-¦           ¦           page.ts
-¦           ¦           
-¦           +---track
-¦           ¦   +---[slug]
-¦           ¦           page.ts
-¦           ¦           
-¦           +---update-password
-¦                   page.ts
-¦                   
+¦           package.json
+¦           
 +---.vscode
 ¦       settings.json
 ¦       
@@ -784,7 +98,13 @@ C:.
 ¦   ¦   robots.ts
 ¦   ¦   sitemap.ts
 ¦   ¦   
+¦   +---account
+¦   ¦       page.tsx
+¦   ¦       
 ¦   +---admin
+¦   ¦   +---account-requests
+¦   ¦   ¦       page.tsx
+¦   ¦   ¦       
 ¦   ¦   +---memberships
 ¦   ¦   ¦       page.tsx
 ¦   ¦   ¦       
@@ -802,6 +122,12 @@ C:.
 ¦   ¦               
 ¦   +---api
 ¦   ¦   +---admin
+¦   ¦   ¦   +---account-requests
+¦   ¦   ¦   ¦   ¦   route.ts
+¦   ¦   ¦   ¦   ¦   
+¦   ¦   ¦   ¦   +---status
+¦   ¦   ¦   ¦           route.ts
+¦   ¦   ¦   ¦           
 ¦   ¦   ¦   +---auth
 ¦   ¦   ¦   ¦       route.ts
 ¦   ¦   ¦   ¦       
@@ -871,6 +197,10 @@ C:.
 ¦   ¦   ¦               route.ts
 ¦   ¦   ¦               
 ¦   ¦   +---public
+¦   ¦       +---account
+¦   ¦       ¦   +---delete-request
+¦   ¦       ¦           route.ts
+¦   ¦       ¦           
 ¦   ¦       +---auth
 ¦   ¦       ¦   +---logout
 ¦   ¦       ¦           route.ts
@@ -941,6 +271,7 @@ C:.
 ¦   ¦           page.tsx
 ¦   ¦           
 ¦   +---lib
+¦   ¦       security.ts
 ¦   ¦       supabaseAdmin.ts
 ¦   ¦       supabaseAuthClient.ts
 ¦   ¦       supabaseClient.ts
