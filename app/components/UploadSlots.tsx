@@ -142,15 +142,28 @@ setUploadedKeys((prev) => {
     fd.append("file", file);
 
     const res = await fetch("/api/admin/uploads", { method: "POST", body: fd });
-    const out = await res.json().catch(() => ({}));
 
-    setBusyKey(null);
+// Try JSON first, but fall back to raw text
+let out: any = null;
+let raw = "";
+try {
+  raw = await res.text();
+  out = raw ? JSON.parse(raw) : null;
+} catch {
+  // raw stays as text if not JSON
+}
 
-    if (!res.ok || !out?.ok) {
-      console.error(out);
-      alert(out?.error || "Upload failed.");
-      return;
-    }
+setBusyKey(null);
+
+if (!res.ok || !out?.ok) {
+  console.error("UPLOAD_FAIL", { status: res.status, raw, out });
+  alert(
+    `Upload failed.\n\nHTTP ${res.status}\n\n` +
+      (out?.error ? `Error: ${out.error}\n\n` : "") +
+      (raw ? `Raw: ${raw.slice(0, 600)}` : "No response body")
+  );
+  return;
+}
 
     // ✅ Instant UI update
     setUploadedKeys((prev) => ({ ...prev, [row.key]: true }));
