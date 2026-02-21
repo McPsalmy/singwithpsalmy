@@ -1,5 +1,4 @@
 import CoverTile from "../../components/CoverTile";
-import SiteHeader from "../../components/SiteHeader";
 import BackButton from "../../components/BackButton";
 import PurchaseButton from "./PurchaseButton";
 import VersionPreview from "./VersionPreview";
@@ -87,8 +86,6 @@ export default async function TrackPage({
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-6xl px-5 py-12">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
           {/* Left */}
