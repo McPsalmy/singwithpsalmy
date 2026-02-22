@@ -74,11 +74,10 @@ export async function POST(req: Request) {
     }
 
     // 4) Mark request approved
-    const approvedAt = new Date().toISOString();
     const { error: updErr } = await admin
-      .from("account_delete_requests")
-      .update({ status: "approved", approved_at: approvedAt })
-      .eq("id", requestId);
+  .from("account_delete_requests")
+  .update({ status: "approved" })
+  .eq("id", requestId);
 
     if (updErr) return noStoreJson({ ok: false, error: updErr.message }, { status: 500 });
 
