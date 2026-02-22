@@ -42,27 +42,46 @@ export function noStoreJson(body: any, init?: { status?: number }) {
 
 /**
  * POST/PUT/DELETE only:
- * If Origin/Referer exists and doesn't match our site URL, reject.
+ * If Origin/Referer exists and doesn't match our allowed site URL(s), reject.
  * This prevents basic CSRF-style cross-site POSTs.
  */
 export function enforceSameOriginForMutations(req: Request) {
-  const site =
-    (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+  const rawSite =
+    (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "")
+      .trim()
+      .replace(/\/+$/, "");
 
   // If site isn't set, don't block (to avoid accidental lockout).
-  if (!site) return { ok: true as const };
+  if (!rawSite) return { ok: true as const };
+
+  // Allow both www and non-www for your domain safely
+  const allowedOrigins = new Set<string>();
+  try {
+    const u = new URL(rawSite);
+    const baseOrigin = u.origin; // e.g. https://singwithpsalmy.com
+    allowedOrigins.add(baseOrigin);
+
+    // If the host starts with www., add non-www; otherwise add www.
+    const host = u.host;
+    const altHost = host.startsWith("www.") ? host.slice(4) : `www.${host}`;
+    allowedOrigins.add(`${u.protocol}//${altHost}`);
+  } catch {
+    // If rawSite isn't a valid URL for some reason, fall back to strict string compare
+    allowedOrigins.add(rawSite);
+  }
 
   const origin = (req.headers.get("origin") || "").trim().replace(/\/+$/, "");
   const referer = (req.headers.get("referer") || "").trim();
 
-  // If browser sends Origin, enforce it strictly.
-  if (origin && origin !== site) {
+  // If browser sends Origin, enforce allow-list.
+  if (origin && !allowedOrigins.has(origin)) {
     return { ok: false as const, error: "Bad origin" };
   }
 
-  // If no Origin but Referer exists, enforce prefix match.
-  if (!origin && referer && !referer.startsWith(site)) {
-    return { ok: false as const, error: "Bad referer" };
+  // If no Origin but Referer exists, enforce prefix match against allow-list.
+  if (!origin && referer) {
+    const ok = Array.from(allowedOrigins).some((o) => referer.startsWith(o));
+    if (!ok) return { ok: false as const, error: "Bad referer" };
   }
 
   return { ok: true as const };
