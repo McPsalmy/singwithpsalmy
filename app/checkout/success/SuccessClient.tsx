@@ -15,6 +15,10 @@ function versionLabel(v: CartItem["version"]) {
   return "Reduced vocals (low guide vocals)";
 }
 
+function keyOf(it: Pick<CartItem, "slug" | "version">) {
+  return `${it.slug}::${it.version}`;
+}
+
 export default function SuccessClient() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [ref, setRef] = useState<string>("");
@@ -38,8 +42,6 @@ export default function SuccessClient() {
         }
 
         setRef(out.reference || reference);
-
-        // items stored in DB should match {slug,title,version}
         setItems((out.items || []) as CartItem[]);
       } catch {
         setItems([]);
@@ -47,13 +49,12 @@ export default function SuccessClient() {
       }
     }
 
-    // ✅ If ref is in URL, trust DB (works across devices)
     if (qpRef) {
       loadFromDb(qpRef);
       return;
     }
 
-    // ✅ fallback to old localStorage logic (keeps existing checkout flow working)
+    // fallback to old localStorage logic
     const paidUntil = Number(localStorage.getItem("swp_paid_until") || "0");
     const now = Date.now();
 
@@ -77,10 +78,31 @@ export default function SuccessClient() {
   const hasItems = useMemo(() => items.length > 0, [items.length]);
 
   function clearReceipt() {
+    // 1) Clear receipt data (leave this as-is)
     localStorage.removeItem("swp_paid_items");
     localStorage.removeItem("swp_paid_ref");
     localStorage.removeItem("swp_paid_until");
-    localStorage.removeItem("swp_cart"); // optional: clear cart after success
+
+    // 2) Remove ONLY purchased items from cart (slug + version match)
+    try {
+      const rawCart = localStorage.getItem("swp_cart");
+      const cart: CartItem[] = rawCart ? (JSON.parse(rawCart) as CartItem[]) : [];
+
+      if (Array.isArray(cart) && cart.length) {
+        const purchased = new Set(items.map((it) => keyOf(it)));
+        const remaining = cart.filter((it) => !purchased.has(keyOf(it)));
+
+        if (remaining.length > 0) {
+          localStorage.setItem("swp_cart", JSON.stringify(remaining));
+        } else {
+          localStorage.removeItem("swp_cart");
+        }
+      }
+    } catch {
+      // If cart is corrupted, don't risk breaking checkout UX — just leave it alone.
+    }
+
+    // 3) Notify UI + redirect
     window.dispatchEvent(new Event("swp_cart_changed"));
     window.location.href = "/browse";
   }
@@ -98,8 +120,7 @@ export default function SuccessClient() {
           </p>
         ) : (
           <p className="mt-2 text-sm text-white/70">
-            If you just paid, go back to your Paystack receipt link and return to
-            the site again.
+            If you just paid, go back to your Paystack receipt link and return to the site again.
           </p>
         )}
 
@@ -117,21 +138,15 @@ export default function SuccessClient() {
                   className="flex flex-col gap-3 rounded-2xl bg-black/30 p-4 ring-1 ring-white/10 md:flex-row md:items-center md:justify-between"
                 >
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold">
-                      {it.title || it.slug}
-                    </div>
-                    <div className="mt-1 text-xs text-white/60">
-                      {versionLabel(it.version)}
-                    </div>
+                    <div className="text-sm font-semibold">{it.title || it.slug}</div>
+                    <div className="mt-1 text-xs text-white/60">{versionLabel(it.version)}</div>
                   </div>
 
                   <button
                     onClick={() => {
                       const u = `/api/public/tracks/paid-download?slug=${encodeURIComponent(
                         it.slug
-                      )}&v=${encodeURIComponent(
-                        it.version
-                      )}&ref=${encodeURIComponent(ref)}`;
+                      )}&v=${encodeURIComponent(it.version)}&ref=${encodeURIComponent(ref)}`;
 
                       const a = document.createElement("a");
                       a.href = u;
@@ -166,7 +181,7 @@ export default function SuccessClient() {
                 onClick={clearReceipt}
                 className="rounded-2xl bg-white/10 px-5 py-3 text-sm ring-1 ring-white/15 hover:bg-white/15"
               >
-                Clear cart & finish
+                Clear purchased items & finish
               </button>
             </div>
           </div>
@@ -182,8 +197,8 @@ export default function SuccessClient() {
         )}
 
         <p className="mt-6 text-xs text-white/50">
-          Next upgrade: we’ll replace localStorage-based access with a server-issued
-          download token (more secure).
+          Next upgrade: we’ll replace localStorage-based access with a server-issued download token
+          (more secure).
         </p>
       </section>
     </main>
