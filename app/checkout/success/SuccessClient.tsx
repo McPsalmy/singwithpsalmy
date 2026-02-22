@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import SiteHeader from "../../components/SiteHeader";
 
 type CartItem = {
   slug: string;
@@ -88,8 +87,6 @@ export default function SuccessClient() {
 
   return (
     <main className="min-h-screen text-white">
-      <SiteHeader />
-
       <section className="mx-auto max-w-4xl px-5 py-12">
         <h1 className="text-3xl font-semibold tracking-tight">
           {hasItems ? "Payment successful ✓" : "No recent purchase found"}
