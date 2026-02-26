@@ -49,12 +49,15 @@ export default function PsalmyHomePage() {
               </p>
             </a>
 
-            <div className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10">
-              <div className="text-lg font-semibold">Analytics (Coming soon)</div>
-              <p className="mt-2 text-sm text-white/65">
-                Track traffic sources and top downloads after deployment.
-              </p>
-            </div>
+            <a
+  href="/admin/monitoring"
+  className="rounded-3xl bg-white/5 p-6 ring-1 ring-white/10 hover:bg-white/10"
+>
+  <div className="text-lg font-semibold">Analytics</div>
+  <p className="mt-2 text-sm text-white/65">
+    Sales, memberships, and email activity — all in one place.
+  </p>
+</a>
           </div>
 
           <p className="mt-10 text-xs text-white/50">
