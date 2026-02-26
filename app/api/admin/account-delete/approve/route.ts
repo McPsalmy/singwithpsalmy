@@ -118,7 +118,7 @@ async function claimEmailEvent(supabase: any, key: string, email: string, kind: 
 
 async function sendResendEmail(opts: { resendKey: string; to: string; subject: string; html: string }) {
   // Change after domain verification:
-  const from = "SingWithPsalmy <onboarding@resend.dev>";
+  const from = "SingWithPsalmy <support@singwithpsalmy.com>";
   const replyTo = process.env.SUPPORT_EMAIL || "support@singwithpsalmy.com";
 
   const r = await fetch("https://api.resend.com/emails", {

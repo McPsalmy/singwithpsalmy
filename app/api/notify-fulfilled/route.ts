@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     // NOTE: Change this after Resend domain verification:
     // e.g. SingWithPsalmy <support@singwithpsalmy.com>
-    const from = "SingWithPsalmy <onboarding@resend.dev>";
+    const from = "SingWithPsalmy <support@singwithpsalmy.com>";
 
     // Optional: make replies go somewhere useful
     const replyTo = process.env.SUPPORT_EMAIL || "support@singwithpsalmy.com";

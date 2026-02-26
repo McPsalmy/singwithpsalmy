@@ -197,7 +197,7 @@ async function recomputeMembershipsBestEffort(supabase: any) {
 }
 
 async function sendResendEmail(opts: { resendKey: string; to: string; subject: string; html: string }) {
-  const from = "SingWithPsalmy <onboarding@resend.dev>"; // change after domain verification
+  const from = "SingWithPsalmy <support@singwithpsalmy.com>"; // change after domain verification
   const replyTo = process.env.SUPPORT_EMAIL || "support@singwithpsalmy.com";
 
   const r = await fetch("https://api.resend.com/emails", {
