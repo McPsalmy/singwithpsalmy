@@ -122,6 +122,13 @@ C:.
 ¦   ¦               
 ¦   +---api
 ¦   ¦   +---admin
+¦   ¦   ¦   +---account-delete
+¦   ¦   ¦   ¦   +---approve
+¦   ¦   ¦   ¦   ¦       route.ts
+¦   ¦   ¦   ¦   ¦       
+¦   ¦   ¦   ¦   +---approve-test
+¦   ¦   ¦   ¦           route.ts
+¦   ¦   ¦   ¦           
 ¦   ¦   ¦   +---account-requests
 ¦   ¦   ¦   ¦   ¦   route.ts
 ¦   ¦   ¦   ¦   ¦   
@@ -170,6 +177,9 @@ C:.
 ¦   ¦   ¦       ¦   route.ts
 ¦   ¦   ¦       ¦   
 ¦   ¦   ¦       +---delete
+¦   ¦   ¦       ¦       route.ts
+¦   ¦   ¦       ¦       
+¦   ¦   ¦       +---signed
 ¦   ¦   ¦       ¦       route.ts
 ¦   ¦   ¦       ¦       
 ¦   ¦   ¦       +---status

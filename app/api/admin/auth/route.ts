@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { cookies } from "next/headers";
-
+import { enforceSameOriginForMutations } from "../../../lib/security";
 
 const COOKIE_NAME = "swp_admin";
 
@@ -16,10 +16,9 @@ function verify(token: string, secret: string) {
 
   const [payload, sig] = parts;
   const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  // timing-safe compare
-  if (sig.length !== expected.length) return false;
-return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
 
+  if (sig.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
 }
 
 // GET = check if cookie is valid
@@ -35,7 +34,6 @@ export async function GET() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value || "";
 
-
   let authed = false;
   if (token) {
     try {
@@ -48,9 +46,14 @@ export async function GET() {
   return NextResponse.json({ ok: true, authed });
 }
 
-
 // POST = login, set httpOnly cookie
 export async function POST(req: Request) {
+  // ✅ Same-origin protection for cookie-setting
+  const sameOrigin = enforceSameOriginForMutations(req);
+  if (!sameOrigin.ok) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const password = String(body?.password || "");
@@ -64,10 +67,7 @@ export async function POST(req: Request) {
     }
 
     if (password !== expected) {
-      return NextResponse.json(
-        { ok: false, error: "Wrong password." },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "Wrong password." }, { status: 401 });
     }
 
     // signed token: payload is timestamp (string)
@@ -97,7 +97,13 @@ export async function POST(req: Request) {
 }
 
 // DELETE = logout, clear cookie
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  // ✅ Same-origin protection for cookie-clearing
+  const sameOrigin = enforceSameOriginForMutations(req);
+  if (!sameOrigin.ok) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
+
   const res = NextResponse.json({ ok: true });
   res.cookies.set({
     name: COOKIE_NAME,
