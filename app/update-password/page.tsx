@@ -17,13 +17,28 @@ export default function UpdatePasswordPage() {
   const [hasSession, setHasSession] = useState<boolean>(false);
 
   useEffect(() => {
-    async function check() {
-      // If the user arrived via the reset link, Supabase will create a session in the URL
-      const { data } = await supabase.auth.getSession();
-      setHasSession(!!data?.session);
+  async function handleRecovery() {
+    // This handles magic link, confirmation, and recovery flows
+    const { data, error } = await supabase.auth.getSession();
+
+    if (data?.session) {
+      setHasSession(true);
+      return;
     }
-    check();
-  }, [supabase]);
+
+    // If no session yet, try exchanging tokens from URL
+    const { error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(window.location.href);
+
+    if (!exchangeError) {
+      setHasSession(true);
+    } else {
+      setHasSession(false);
+    }
+  }
+
+  handleRecovery();
+}, [supabase]);
 
   async function updatePassword(e: React.FormEvent) {
     e.preventDefault();
