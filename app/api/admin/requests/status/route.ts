@@ -2,17 +2,30 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Body = {
   id?: string;
   status?: "open" | "fulfilled" | "archived" | string;
 };
 
+function noStoreJson(body: any, init?: { status?: number }) {
+  const res = NextResponse.json(body, { status: init?.status ?? 200 });
+  res.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+  );
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
+
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as Body | null;
+    const body = (await req.json().catch(() => ({}))) as Body;
 
     const id = String(body?.id ?? "").trim();
+    if (!id) return noStoreJson({ ok: false, error: "Missing id" }, { status: 400 });
 
     const status =
       body?.status === "fulfilled"
@@ -20,13 +33,6 @@ export async function POST(req: Request) {
         : body?.status === "archived"
         ? "archived"
         : "open";
-
-    if (!id) {
-      return NextResponse.json(
-        { ok: false, error: "Missing id" },
-        { status: 400, headers: { "Cache-Control": "no-store" } }
-      );
-    }
 
     const nowIso = new Date().toISOString();
 
@@ -37,26 +43,23 @@ export async function POST(req: Request) {
         ? { status: "archived", archived_at: nowIso }
         : { status: "open", fulfilled_at: null, archived_at: null };
 
-    const { error } = await supabaseAdmin()
+    // ✅ Return the updated row so the UI can update immediately without waiting for reload.
+    const { data, error } = await supabaseAdmin()
       .from("song_requests")
       .update(update)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id,email,song_title,artist,notes,status,created_at,fulfilled_at,archived_at")
+      .single();
 
     if (error) {
-      return NextResponse.json(
-        { ok: false, error: error.message },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
-      );
+      return noStoreJson({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(
-      { ok: true },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    return noStoreJson({ ok: true, data });
   } catch (e: any) {
-    return NextResponse.json(
+    return noStoreJson(
       { ok: false, error: e?.message || "Unknown error" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { status: 500 }
     );
   }
 }

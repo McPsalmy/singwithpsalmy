@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AdminGate from "../../components/AdminGate";
 
 type RequestItem = {
@@ -30,6 +30,10 @@ function fmtDate(iso: string) {
   }
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 export default function AdminRequestsPage() {
   const [items, setItems] = useState<RequestItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -37,27 +41,36 @@ export default function AdminRequestsPage() {
   const [loading, setLoading] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
+  // Prevent overlapping loads (helps avoid “stale overwrite”)
+  const loadSeq = useRef(0);
+
   async function load() {
+    const seq = ++loadSeq.current;
     setLoading(true);
 
     try {
+      // cache: "no-store" helps, but we still need server no-store headers too.
+      // This client-side fix ensures UI updates even if server returns cached list.
       const res = await fetch("/api/admin/requests", { cache: "no-store" });
       const out = await res.json().catch(() => ({}));
 
+      if (seq !== loadSeq.current) return; // ignore older responses
+
       if (!res.ok || !out?.ok) {
         console.error(out);
-        alert("Could not load requests.");
+        setToast("❌ Could not load requests.");
+        setTimeout(() => setToast(null), 1400);
         return;
       }
 
       const mapped: RequestItem[] = (out.data ?? []).map((r: any) => ({
-        id: r.id,
-        email: r.email,
-        songTitle: r.song_title,
+        id: String(r.id),
+        email: String(r.email || ""),
+        songTitle: String(r.song_title || ""),
         artist: r.artist ?? "",
         notes: r.notes ?? "",
         status: (r.status ?? "open") as "open" | "fulfilled" | "archived",
-        createdAt: r.created_at,
+        createdAt: String(r.created_at || ""),
         fulfilledAt: r.fulfilled_at ?? null,
         archivedAt: r.archived_at ?? null,
       }));
@@ -65,9 +78,10 @@ export default function AdminRequestsPage() {
       setItems(mapped);
     } catch (e) {
       console.error(e);
-      alert("Could not load requests.");
+      setToast("❌ Could not load requests.");
+      setTimeout(() => setToast(null), 1400);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
 
@@ -88,56 +102,87 @@ export default function AdminRequestsPage() {
     return showArchived ? items : items.filter((x) => x.status !== "archived");
   }, [items, showArchived]);
 
-  async function setStatus(idx: number, status: "open" | "fulfilled" | "archived") {
-    const item = visibleItems[idx];
-    if (!item?.id) return;
+  async function setStatus(id: string, status: "open" | "fulfilled" | "archived") {
+    const item = items.find((x) => x.id === id);
+    if (!item) return;
 
-    setBusyId(item.id);
+    setBusyId(id);
 
-    const res = await fetch("/api/admin/requests/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: item.id, status }),
-    });
+    // ✅ Optimistic UI update (so dashboard changes immediately)
+    setItems((prev) =>
+      prev.map((x) => {
+        if (x.id !== id) return x;
 
-    const out = await res.json().catch(() => ({}));
-    if (!res.ok || !out?.ok) {
-      console.error(out);
-      alert("Could not update status.");
-      setBusyId(null);
-      return;
-    }
+        if (status === "fulfilled") {
+          return { ...x, status, fulfilledAt: x.fulfilledAt ?? nowIso(), archivedAt: null };
+        }
+        if (status === "archived") {
+          return { ...x, status, archivedAt: x.archivedAt ?? nowIso() };
+        }
+        // open
+        return { ...x, status, archivedAt: null };
+      })
+    );
 
-    // If fulfilled, send email
-    if (status === "fulfilled") {
-      const r2 = await fetch("/api/notify-fulfilled", {
+    try {
+      const res = await fetch("/api/admin/requests/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: item.email,
-          songTitle: item.songTitle,
-          artist: item.artist || "",
-        }),
+        body: JSON.stringify({ id, status }),
       });
 
-      const out2 = await r2.json().catch(() => ({}));
-      if (!r2.ok || !out2?.ok) {
-        console.error(out2);
-        alert("Marked fulfilled, but email failed to send. Check console.");
-      } else {
-        setToast("Marked as fulfilled ✓ Email sent");
-        setTimeout(() => setToast(null), 1400);
-      }
-    } else if (status === "archived") {
-      setToast("Archived ✓");
-      setTimeout(() => setToast(null), 1200);
-    } else {
-      setToast("Reopened ✓");
-      setTimeout(() => setToast(null), 1200);
-    }
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.ok) {
+        console.error(out);
 
-    setBusyId(null);
-    load();
+        // Rollback by reloading fresh data
+        await load();
+
+        alert("Could not update status.");
+        setBusyId(null);
+        return;
+      }
+
+      // If fulfilled, send email (best effort)
+      if (status === "fulfilled") {
+        const r2 = await fetch("/api/notify-fulfilled", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: item.email,
+            songTitle: item.songTitle,
+            artist: item.artist || "",
+          }),
+        });
+
+        const out2 = await r2.json().catch(() => ({}));
+        if (!r2.ok || !out2?.ok) {
+          console.error(out2);
+          setToast("Marked as fulfilled ✓ (Email failed — check logs)");
+          setTimeout(() => setToast(null), 1600);
+        } else {
+          setToast("Marked as fulfilled ✓ Email sent");
+          setTimeout(() => setToast(null), 1400);
+        }
+      } else if (status === "archived") {
+        setToast("Archived ✓");
+        setTimeout(() => setToast(null), 1200);
+      } else {
+        setToast("Reopened ✓");
+        setTimeout(() => setToast(null), 1200);
+      }
+
+      setBusyId(null);
+
+      // ✅ Re-fetch (keeps UI consistent even if backend adds timestamps)
+      await load();
+    } catch (e) {
+      console.error(e);
+      // Rollback by reloading fresh data
+      await load();
+      alert("Could not update status.");
+      setBusyId(null);
+    }
   }
 
   function clearAll() {
@@ -147,14 +192,13 @@ export default function AdminRequestsPage() {
   return (
     <AdminGate>
       <main className="min-h-screen text-white">
-        
         <section className="mx-auto max-w-6xl px-5 py-12">
           <a
-  href="/psalmy"
-  className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1 text-xs ring-1 ring-white/15 hover:bg-white/15"
->
-  ← Back to dashboard
-</a>
+            href="/psalmy"
+            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-1 text-xs ring-1 ring-white/15 hover:bg-white/15"
+          >
+            ← Back to dashboard
+          </a>
 
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -217,7 +261,7 @@ export default function AdminRequestsPage() {
                 </p>
               </div>
             ) : (
-              visibleItems.map((r, idx) => {
+              visibleItems.map((r) => {
                 const status = r.status ?? "open";
                 const busy = busyId === r.id;
 
@@ -262,7 +306,7 @@ export default function AdminRequestsPage() {
                         {status === "open" ? (
                           <button
                             disabled={busy}
-                            onClick={() => setStatus(idx, "fulfilled")}
+                            onClick={() => setStatus(r.id, "fulfilled")}
                             className={[
                               "rounded-xl px-4 py-2 text-sm font-semibold",
                               busy ? "bg-white/60 text-black" : "bg-white text-black hover:bg-white/90",
@@ -274,7 +318,7 @@ export default function AdminRequestsPage() {
                           <>
                             <button
                               disabled={busy}
-                              onClick={() => setStatus(idx, "archived")}
+                              onClick={() => setStatus(r.id, "archived")}
                               className={[
                                 "rounded-xl px-4 py-2 text-sm font-semibold",
                                 busy ? "bg-white/10 text-white/60" : "bg-white/10 hover:bg-white/15",
@@ -285,7 +329,7 @@ export default function AdminRequestsPage() {
 
                             <button
                               disabled={busy}
-                              onClick={() => setStatus(idx, "open")}
+                              onClick={() => setStatus(r.id, "open")}
                               className={[
                                 "rounded-xl px-4 py-2 text-sm ring-1 ring-white/15",
                                 busy ? "bg-white/10 text-white/60" : "bg-white/10 hover:bg-white/15",
@@ -297,7 +341,7 @@ export default function AdminRequestsPage() {
                         ) : (
                           <button
                             disabled={busy}
-                            onClick={() => setStatus(idx, "open")}
+                            onClick={() => setStatus(r.id, "open")}
                             className={[
                               "rounded-xl px-4 py-2 text-sm ring-1 ring-white/15",
                               busy ? "bg-white/10 text-white/60" : "bg-white/10 hover:bg-white/15",
