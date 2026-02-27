@@ -9,6 +9,46 @@ function addMonths(from: Date, months: number) {
   return d;
 }
 
+/**
+ * Remaining months from now until expiry.
+ * Returns 0 if expired.
+ * Uses calendar-month math (not 30-day buckets).
+ */
+function remainingMonths(now: Date, expires: Date) {
+  if (expires.getTime() <= now.getTime()) return 0;
+
+  let months =
+    (expires.getFullYear() - now.getFullYear()) * 12 +
+    (expires.getMonth() - now.getMonth());
+
+  // If expiry day/time is after "now day/time" within the month, count the current partial month as 1.
+  // If expiry is earlier in the month than now, reduce by 1.
+  const nowY = now.getFullYear(),
+    nowM = now.getMonth(),
+    nowD = now.getDate(),
+    nowT = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+  const expY = expires.getFullYear(),
+    expM = expires.getMonth(),
+    expD = expires.getDate(),
+    expT = expires.getHours() * 3600 + expires.getMinutes() * 60 + expires.getSeconds();
+
+  if (expY === nowY && expM === nowM) {
+    // same month
+    return 1; // expiry is in the future (checked above) => at least 1 month remaining
+  }
+
+  // If expiry day/time is before now day/time in its month, months stays as is.
+  // If expiry day/time is after now day/time relative to month boundaries, include the last partial month.
+  // Practical rule: if expiry day is greater than now day (or equal but later time), count that last month.
+  if (expD > nowD || (expD === nowD && expT >= nowT)) {
+    months += 1;
+  }
+
+  if (months < 1) months = 1;
+  return months;
+}
+
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
@@ -16,10 +56,7 @@ export async function POST(req: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(
-        { ok: false, error: "Missing Supabase env vars" },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing Supabase env vars" }, { status: 500 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -65,6 +102,7 @@ export async function POST(req: Request) {
             plan: null,
             started_at: null,
             expires_at: new Date(0).toISOString(),
+            months: 0,
           },
           { onConflict: "email" }
         );
@@ -76,20 +114,24 @@ export async function POST(req: Request) {
         );
       }
 
-      return NextResponse.json({ ok: true, email, status: "expired", expires_at: null });
+      return NextResponse.json({ ok: true, email, status: "expired", expires_at: null, months: 0 });
     }
 
     const firstPaidAt = payments[0].paid_at ? new Date(payments[0].paid_at) : new Date();
-    let cursor = firstPaidAt;
+    let cursor = new Date(firstPaidAt);
 
     for (const p of payments) {
       const m = Number((p as any).months || 0);
       if (m > 0) cursor = addMonths(cursor, m);
     }
 
-    const expiresAt = cursor.toISOString();
+    const expiresAtDate = cursor;
+    const expiresAt = expiresAtDate.toISOString();
+
     const latestPlan = String((payments[payments.length - 1] as any)?.plan || "unknown");
-    const isActive = cursor.getTime() > Date.now();
+    const isActive = expiresAtDate.getTime() > Date.now();
+
+    const monthsLeft = remainingMonths(new Date(), expiresAtDate);
 
     const { error: memErr } = await supabase
       .from("memberships")
@@ -100,6 +142,7 @@ export async function POST(req: Request) {
           plan: latestPlan,
           started_at: firstPaidAt.toISOString(),
           expires_at: expiresAt,
+          months: isActive ? monthsLeft : 0,
         },
         { onConflict: "email" }
       );
@@ -116,6 +159,7 @@ export async function POST(req: Request) {
       email,
       status: isActive ? "active" : "expired",
       expires_at: expiresAt,
+      months: isActive ? monthsLeft : 0,
       counted_payments: payments.length,
     });
   } catch (e: any) {
