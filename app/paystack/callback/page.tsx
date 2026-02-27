@@ -58,17 +58,15 @@ export default function PaystackCallbackPage() {
           return;
         }
 
-        // ✅ MEMBERSHIP: no legacy cookies anymore
+        // ✅ MEMBERSHIP: redirect to /account (instead of /membership)
         if (out?.kind === "membership") {
           const email = String(out?.email || "").trim().toLowerCase();
 
-          // If they’re already logged in with Supabase, send them to membership directly.
-          // Otherwise, ask them to log in with the same email used for payment.
-          // (Membership is now identity-based via Supabase Auth.)
+          // If for any reason email isn't present, still send to Account
           if (!email) {
             setMsg("Membership verified ✓ Redirecting...");
             setTimeout(() => {
-              window.location.href = "/membership";
+              window.location.href = "/account";
             }, 600);
             return;
           }
@@ -80,12 +78,11 @@ export default function PaystackCallbackPage() {
             // ignore
           }
 
-          setMsg("Membership verified ✓ Please log in to activate access...");
+          setMsg("Membership verified ✓ Redirecting to your account...");
 
-          // Send them to sign-in with next=/membership
-          // (You can also send to /signup if you prefer.)
+          // Send them to sign-in with next=/account
           setTimeout(() => {
-            window.location.href = `/signin?next=${encodeURIComponent(safeNext("/membership"))}`;
+            window.location.href = `/signin?next=${encodeURIComponent(safeNext("/account"))}`;
           }, 900);
 
           return;

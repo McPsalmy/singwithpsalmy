@@ -2,6 +2,7 @@ import CoverTile from "../../components/CoverTile";
 import AutoDownload from "./AutoDownload";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 
 type Params = { slug: string };
 
@@ -25,6 +26,35 @@ function versionLabel(v: string) {
   return "Performance version (instrumental only)";
 }
 
+/**
+ * ✅ Source of truth: Supabase Auth session cookies (NOT legacy swp_member cookies)
+ * Returns the logged-in user's email, or "" if not logged in.
+ */
+async function getLoggedInEmail() {
+  const cookieStore = await cookies();
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  if (!supabaseUrl || !anonKey) return "";
+
+  const supaAuth = createServerClient(supabaseUrl, anonKey, {
+    cookies: {
+      get(name) {
+        return cookieStore.get(name)?.value;
+      },
+      set() {
+        // No-op: this page does not need to mutate cookies
+      },
+      remove() {
+        // No-op
+      },
+    },
+  });
+
+  const { data } = await supaAuth.auth.getUser();
+  return String(data?.user?.email || "").trim().toLowerCase();
+}
+
 async function getMembershipStatusFromDb(email: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -36,12 +66,11 @@ async function getMembershipStatusFromDb(email: string) {
     auth: { persistSession: false },
   });
 
-  // Grab the latest active membership for this email
+  // Latest membership row for this email (active or expired); we decide by expires_at + status.
   const { data, error } = await supabase
     .from("memberships")
     .select("expires_at,status,plan")
     .eq("email", email)
-    .eq("status", "active")
     .order("expires_at", { ascending: false })
     .limit(1);
 
@@ -58,7 +87,7 @@ async function getMembershipStatusFromDb(email: string) {
   }
 
   const exp = new Date(expiresAt).getTime();
-  const isActive = exp > Date.now();
+  const isActive = row?.status === "active" && exp > Date.now();
 
   return { ok: true as const, isActive, expiresAt };
 }
@@ -85,25 +114,21 @@ export default async function DownloadPage({
   const slug = resolvedParams?.slug ?? "";
   const v = normalizeVersion(sp?.v);
 
-  const store = await cookies();
-  const isMemberFlag = store.get("swp_member")?.value === "1";
-  const memberEmail = store.get("swp_member_email")?.value || "";
+  // ✅ real logged-in email from Supabase Auth session
+  const email = await getLoggedInEmail();
 
-  // Default block if no member cookie or no email
   let isMember = false;
   let expiresAt: string | null = null;
 
-  if (isMemberFlag && memberEmail) {
-    const m = await getMembershipStatusFromDb(memberEmail);
+  if (email) {
+    const m = await getMembershipStatusFromDb(email);
     isMember = m.isActive;
     expiresAt = m.expiresAt;
   }
 
-  if (!isMember) {
+  if (!email || !isMember) {
     return (
       <main className="min-h-screen text-white">
-
-
         <section className="mx-auto max-w-3xl px-5 py-16 text-center">
           <h1 className="text-3xl font-semibold tracking-tight">Members-only download</h1>
 
@@ -111,25 +136,41 @@ export default async function DownloadPage({
             Full-length karaoke videos are available to active members or after checkout.
           </p>
 
-          {isMemberFlag && memberEmail && expiresAt ? (
+          {!email ? (
             <div className="mx-auto mt-6 max-w-lg rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
-              <div className="text-sm font-semibold">Membership expired</div>
+              <div className="text-sm font-semibold">Please log in</div>
               <p className="mt-2 text-sm text-white/70">
-                Your membership for <span className="text-white">{memberEmail}</span> has expired.
+                Log in to access member downloads.
+              </p>
+            </div>
+          ) : expiresAt ? (
+            <div className="mx-auto mt-6 max-w-lg rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+              <div className="text-sm font-semibold">Membership inactive</div>
+              <p className="mt-2 text-sm text-white/70">
+                Your membership for <span className="text-white">{email}</span> is not active.
               </p>
               <p className="mt-2 text-xs text-white/55">
-                Expired on: <span className="text-white">{new Date(expiresAt).toLocaleString()}</span>
+                Expires at: <span className="text-white">{new Date(expiresAt).toLocaleString()}</span>
               </p>
             </div>
           ) : null}
 
           <div className="mt-8 flex flex-col items-center gap-3">
-            <a
-              href="/membership"
-              className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
-            >
-              View membership plans
-            </a>
+            {!email ? (
+              <a
+                href={`/signin?next=${encodeURIComponent(`/download/${slug}?v=${encodeURIComponent(v)}`)}`}
+                className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                Log in
+              </a>
+            ) : (
+              <a
+                href="/membership"
+                className="rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
+              >
+                View membership plans
+              </a>
+            )}
 
             <a
               href={`/track/${slug}`}
@@ -160,14 +201,13 @@ export default async function DownloadPage({
               <div className="mt-1 text-sm text-white/60">
                 Version: <span className="text-white">{versionLabel(v)}</span>
               </div>
-              {memberEmail ? (
-                <div className="mt-1 text-xs text-white/55">
-                  Member: <span className="text-white">{memberEmail}</span>
-                </div>
-              ) : null}
+              <div className="mt-1 text-xs text-white/55">
+                Member: <span className="text-white">{email}</span>
+              </div>
             </div>
           </div>
 
+          {/* ✅ keep your current AutoDownload which uses full-url + download */}
           <AutoDownload slug={slug} version={v} />
 
           <a
